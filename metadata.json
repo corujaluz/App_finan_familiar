@@ -1,0 +1,8 @@
+{
+  "name": "FinanFamília - Gestão Financeira Familiar",
+  "description": "Controle financeiro familiar completo com discriminação de rendas e despesas, confirmação de pagamentos com comprovante, análise gráfica de gastos e orçamentos por membro.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

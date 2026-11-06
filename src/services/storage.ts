@@ -76,7 +76,12 @@ export const loadStoredData = (): AppState => {
     const creditCardExpenses: CreditCardExpense[] = rawCC ? JSON.parse(rawCC) : INITIAL_CREDIT_CARD_EXPENSES;
     const alarmSettings: AlarmSettings = rawAlarm ? { ...DEFAULT_ALARM_SETTINGS, ...JSON.parse(rawAlarm) } : DEFAULT_ALARM_SETTINGS;
     const userAccounts: UserAccount[] = rawAccounts ? JSON.parse(rawAccounts) : DEFAULT_USER_ACCOUNTS;
-    const activeUserId: string | null = rawActiveUser !== null ? rawActiveUser : 'usr_eduardo';
+    const activeUserId: string | null =
+      rawActiveUser && rawActiveUser !== '__logged_out__'
+        ? rawActiveUser
+        : rawActiveUser === '__logged_out__'
+        ? null
+        : 'usr_eduardo';
 
     return { transactions, categories, members, incomeSources, creditCardExpenses, alarmSettings, userAccounts, activeUserId };
   } catch (err) {
@@ -106,7 +111,7 @@ export const persistData = (state: AppState): void => {
     if (state.activeUserId) {
       localStorage.setItem(STORAGE_KEYS.ACTIVE_USER_ID, state.activeUserId);
     } else {
-      localStorage.removeItem(STORAGE_KEYS.ACTIVE_USER_ID);
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_USER_ID, '__logged_out__');
     }
   } catch (err) {
     console.error('Erro ao salvar no localStorage:', err);

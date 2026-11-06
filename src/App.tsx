@@ -19,7 +19,7 @@ import { playAlarmSound } from './utils/soundAlarm';
 import { AlarmSettings, Category, CreditCardExpense, FamilyMember, IncomeSource, PaymentMethod, Transaction, UserAccount } from './types/finance';
 import { INITIAL_CATEGORIES, INITIAL_CREDIT_CARD_EXPENSES, INITIAL_INCOME_SOURCES, INITIAL_MEMBERS, INITIAL_TRANSACTIONS } from './data/initialData';
 import { formatBRL, formatMonthYear } from './utils/formatters';
-import { ArrowDownLeft, ArrowUpRight, CheckCircle2, ShieldAlert, Briefcase, Bell, CreditCard } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, CheckCircle2, ShieldAlert, Briefcase, Bell, CreditCard, Lock, LogOut } from 'lucide-react';
 
 export default function App() {
   // Theme state
@@ -65,10 +65,12 @@ export default function App() {
   const [initialStatusFilter, setInitialStatusFilter] = useState<string>('all');
 
   // Active User Account: Eduardo Heckler (Admin) or Graciela Heckler (Usuário)
-  const currentUser: UserAccount = useMemo(() => {
+  // When activeUserId is null, currentUser is null and access is restricted
+  const currentUser: UserAccount | null = useMemo(() => {
+    if (!appState.activeUserId) return null;
     const accounts = appState.userAccounts || DEFAULT_USER_ACCOUNTS;
     const found = accounts.find((u) => u.id === appState.activeUserId);
-    return found || accounts[0] || DEFAULT_USER_ACCOUNTS[0];
+    return found || null;
   }, [appState.activeUserId, appState.userAccounts]);
 
   const handleLogin = (account: UserAccount) => {
@@ -77,6 +79,14 @@ export default function App() {
       activeUserId: account.id,
     }));
     setIsLoginModalOpen(false);
+  };
+
+  const handleLogout = () => {
+    setAppState((prev) => ({
+      ...prev,
+      activeUserId: null,
+    }));
+    setIsLoginModalOpen(true);
   };
 
   const handleUpdatePin = (userId: string, newPin: string) => {
@@ -486,6 +496,45 @@ export default function App() {
     setCurrentTab('transactions');
   };
 
+  // Se nenhum usuário estiver logado, bloqueia o acesso à aplicação completa e exibe a tela de login
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-4 relative overflow-hidden font-sans">
+        {/* Glow de fundo */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-10 right-10 w-72 h-72 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Brand Lock Header */}
+        <div className="mb-6 flex flex-col items-center text-center max-w-sm">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-emerald-500 flex items-center justify-center text-white shadow-xl mb-3">
+            <Lock className="w-7 h-7" />
+          </div>
+          <h1 className="text-2xl font-black tracking-tight text-white">
+            Heckler Family
+          </h1>
+          <p className="text-xs text-slate-400 mt-1">
+            Gestão Financeira Familiar com Acesso Restrito
+          </p>
+        </div>
+
+        {/* Modal de Login Obrigatório */}
+        <LoginModal
+          isOpen={true}
+          isMandatory={true}
+          currentUser={null}
+          userAccounts={appState.userAccounts || DEFAULT_USER_ACCOUNTS}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+          onUpdatePin={handleUpdatePin}
+        />
+
+        <div className="mt-8 text-center text-[11px] text-slate-500 max-w-xs">
+          Acesso protegido. Somente os usuários cadastrados (<strong>Eduardo</strong> e <strong>Graciela</strong>) possuem acesso às finanças familiares.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors">
       {/* 1. Header (Top Bar Contract) */}
@@ -504,6 +553,7 @@ export default function App() {
         activeMonthYear={formatMonthYear(currentMonthKey)}
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginModalOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Container */}
@@ -887,6 +937,7 @@ export default function App() {
         currentUser={currentUser}
         userAccounts={appState.userAccounts || DEFAULT_USER_ACCOUNTS}
         onLogin={handleLogin}
+        onLogout={handleLogout}
         onUpdatePin={handleUpdatePin}
       />
     </div>

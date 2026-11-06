@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Sun, Moon, Download, Upload, Wallet, Bell, Shield, User, LogIn } from 'lucide-react';
+import { Plus, Sun, Moon, Download, Upload, Wallet, Bell, Shield, User, LogIn, LogOut } from 'lucide-react';
 import { UserAccount } from '../types/finance';
 
 interface HeaderProps {
@@ -14,6 +14,7 @@ interface HeaderProps {
   activeMonthYear: string;
   currentUser: UserAccount | null;
   onOpenLogin: () => void;
+  onLogout: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleDarkMode,
   currentUser,
   onOpenLogin,
+  onLogout,
 }) => {
   return (
     <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
@@ -193,6 +195,19 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Entrar</span>
+              </button>
+            )}
+
+            {/* Explicit Logout Button */}
+            {currentUser && (
+              <button
+                onClick={onLogout}
+                title="Fazer Logout (Bloquear Acesso)"
+                aria-label="Sair da Conta"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors border border-rose-200/80 dark:border-rose-900/50"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sair</span>
               </button>
             )}
 

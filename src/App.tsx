@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MonthSelector } from './components/MonthSelector';
 import { SummaryCards } from './components/SummaryCards';
@@ -45,6 +45,26 @@ export default function App() {
   // App Data State
   const [appState, setAppState] = useState<AppState>(() => loadStoredData());
 
+  // Save & Inactivity tracking state
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(() => {
+    const now = new Date();
+    return now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  });
+  const [inactivityNotice, setInactivityNotice] = useState<string | null>(null);
+
+  // AppState and unsaved changes refs to avoid stale closures in timers and beforeunload listeners
+  const appStateRef = useRef<AppState>(appState);
+  useEffect(() => {
+    appStateRef.current = appState;
+  }, [appState]);
+
+  const hasUnsavedChangesRef = useRef<boolean>(hasUnsavedChanges);
+  useEffect(() => {
+    hasUnsavedChangesRef.current = hasUnsavedChanges;
+  }, [hasUnsavedChanges]);
+
   // Active month key (defaults to "2026-11" or current month)
   const [currentMonthKey, setCurrentMonthKey] = useState<string>(() => {
     const today = new Date().toISOString().slice(0, 7);
@@ -73,15 +93,114 @@ export default function App() {
     return found || null;
   }, [appState.activeUserId, appState.userAccounts]);
 
+  // Function to save data (manual or automatic)
+  const performSave = useCallback((isManual = false) => {
+    setIsSaving(true);
+    try {
+      persistData(appStateRef.current);
+      const now = new Date();
+      setLastSavedTime(now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+      setHasUnsavedChanges(false);
+    } catch (err) {
+      console.error('Falha ao salvar dados:', err);
+    } finally {
+      setTimeout(() => {
+        setIsSaving(false);
+      }, isManual ? 400 : 200);
+    }
+  }, []);
+
+  // 1. Periodic Auto-save every 10 minutes (600,000 ms)
+  useEffect(() => {
+    const AUTO_SAVE_INTERVAL_MS = 10 * 60 * 1000;
+    const intervalId = setInterval(() => {
+      performSave(false);
+    }, AUTO_SAVE_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [performSave]);
+
+  // 2. Beforeunload event listener: guarantee save and confirm before closing window
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      try {
+        persistData(appStateRef.current);
+      } catch (err) {
+        console.error('Erro ao persistir no beforeunload:', err);
+      }
+
+      if (hasUnsavedChangesRef.current) {
+        e.preventDefault();
+        e.returnValue = 'Suas alterações foram salvas. Deseja realmente fechar o aplicativo?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // 3. User Inactivity Detection (10 minutes without interaction): save then logout
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const resetInactivityTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        // Step 1: Save data before logout
+        try {
+          persistData(appStateRef.current);
+          const now = new Date();
+          setLastSavedTime(now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+          setHasUnsavedChanges(false);
+        } catch (err) {
+          console.error('Erro ao salvar antes do logout:', err);
+        }
+
+        // Step 2: Set security inactivity notice and logout
+        setInactivityNotice(
+          'Você foi desconectado automaticamente por inatividade (10 minutos sem interação). Suas alterações foram salvas com segurança!'
+        );
+        setAppState((prev) => ({
+          ...prev,
+          activeUserId: null,
+        }));
+        setIsLoginModalOpen(true);
+      }, INACTIVITY_TIMEOUT_MS);
+    };
+
+    const interactionEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    interactionEvents.forEach((evt) => {
+      window.addEventListener(evt, resetInactivityTimer, { passive: true });
+    });
+
+    // Start timer initially
+    resetInactivityTimer();
+
+    return () => {
+      clearTimeout(timeoutId);
+      interactionEvents.forEach((evt) => {
+        window.removeEventListener(evt, resetInactivityTimer);
+      });
+    };
+  }, [currentUser]);
+
   const handleLogin = (account: UserAccount) => {
     setAppState((prev) => ({
       ...prev,
       activeUserId: account.id,
     }));
+    setInactivityNotice(null);
     setIsLoginModalOpen(false);
   };
 
   const handleLogout = () => {
+    // Save data before manual logout
+    persistData(appStateRef.current);
+    setHasUnsavedChanges(false);
     setAppState((prev) => ({
       ...prev,
       activeUserId: null,
@@ -96,10 +215,17 @@ export default function App() {
         u.id === userId ? { ...u, pin: newPin } : u
       ),
     }));
+    setHasUnsavedChanges(true);
   };
 
-  // Persist whenever state changes
+  // Immediate persistence on state changes as background backup with change detection
+  const isFirstLoadRef = useRef(true);
   useEffect(() => {
+    if (isFirstLoadRef.current) {
+      isFirstLoadRef.current = false;
+      return;
+    }
+    setHasUnsavedChanges(true);
     persistData(appState);
   }, [appState]);
 
@@ -526,6 +652,7 @@ export default function App() {
           onLogin={handleLogin}
           onLogout={handleLogout}
           onUpdatePin={handleUpdatePin}
+          inactivityNotice={inactivityNotice}
         />
 
         <div className="mt-8 text-center text-[11px] text-slate-500 max-w-xs">
@@ -554,6 +681,10 @@ export default function App() {
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onLogout={handleLogout}
+        onSaveData={() => performSave(true)}
+        isSaving={isSaving}
+        hasUnsavedChanges={hasUnsavedChanges}
+        lastSavedTime={lastSavedTime}
       />
 
       {/* Main Container */}
@@ -847,6 +978,7 @@ export default function App() {
             <BudgetLimits
               categories={appState.categories}
               transactions={appState.transactions}
+              creditCardExpenses={appState.creditCardExpenses || []}
               currentMonthKey={currentMonthKey}
               onUpdateCategoryBudget={handleUpdateCategoryBudget}
             />
@@ -939,6 +1071,7 @@ export default function App() {
         onLogin={handleLogin}
         onLogout={handleLogout}
         onUpdatePin={handleUpdatePin}
+        inactivityNotice={inactivityNotice}
       />
     </div>
   );

@@ -11,6 +11,7 @@ interface LoginModalProps {
   onLogout?: () => void;
   onUpdatePin?: (userId: string, newPin: string) => void;
   isMandatory?: boolean; // When true, user cannot close modal without logging in
+  inactivityNotice?: string | null;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
@@ -22,6 +23,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onLogout,
   onUpdatePin,
   isMandatory = false,
+  inactivityNotice = null,
 }) => {
   const [selectedUserId, setSelectedUserId] = useState<string>(
     currentUser?.id || userAccounts[0]?.id || 'usr_eduardo'
@@ -126,6 +128,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             )}
           </div>
         </div>
+
+        {/* Inactivity Notice Banner */}
+        {inactivityNotice && (
+          <div className="mx-6 mt-4 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-2xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5 shadow-2xs">
+            <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <strong className="block font-semibold text-amber-950 dark:text-amber-100">
+                Sessão Encerrada por Inatividade
+              </strong>
+              <p className="mt-0.5 leading-relaxed text-[11px] opacity-95">
+                {inactivityNotice}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Account Selector Cards */}
         <div className="p-6 space-y-5">

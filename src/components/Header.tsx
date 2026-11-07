@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Sun, Moon, Download, Upload, Wallet, Bell, Shield, User, LogIn, LogOut } from 'lucide-react';
+import { Plus, Sun, Moon, Download, Upload, Wallet, Bell, Shield, User, LogIn, LogOut, Save, Check, RefreshCw } from 'lucide-react';
 import { UserAccount } from '../types/finance';
 
 interface HeaderProps {
@@ -15,6 +15,10 @@ interface HeaderProps {
   currentUser: UserAccount | null;
   onOpenLogin: () => void;
   onLogout: () => void;
+  onSaveData?: () => void;
+  isSaving?: boolean;
+  hasUnsavedChanges?: boolean;
+  lastSavedTime?: string | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -29,6 +33,10 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onOpenLogin,
   onLogout,
+  onSaveData,
+  isSaving = false,
+  hasUnsavedChanges = false,
+  lastSavedTime = null,
 }) => {
   return (
     <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
@@ -208,6 +216,48 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Sair</span>
+              </button>
+            )}
+
+            {/* Salvar Alterações Button (Manual save with status & indicator) */}
+            {onSaveData && (
+              <button
+                onClick={onSaveData}
+                disabled={isSaving}
+                title={
+                  hasUnsavedChanges
+                    ? 'Existem alterações pendentes. Clique para salvar agora!'
+                    : lastSavedTime
+                    ? `Todas as alterações foram salvas às ${lastSavedTime}. Clique para salvar novamente.`
+                    : 'Salvar alterações no aplicativo'
+                }
+                className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all border whitespace-nowrap shrink-0 shadow-2xs ${
+                  hasUnsavedChanges
+                    ? 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white border-amber-600 ring-2 ring-amber-400/40 animate-pulse'
+                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                {isSaving ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : hasUnsavedChanges ? (
+                  <Save className="w-3.5 h-3.5 text-white" />
+                ) : (
+                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
+                )}
+
+                <span className="hidden sm:inline">
+                  {isSaving
+                    ? 'Salvando...'
+                    : hasUnsavedChanges
+                    ? 'Salvar Alterações'
+                    : lastSavedTime
+                    ? `Salvo ${lastSavedTime}`
+                    : 'Salvo'}
+                </span>
+
+                {hasUnsavedChanges && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-white ring-2 ring-amber-600 animate-ping" />
+                )}
               </button>
             )}
 

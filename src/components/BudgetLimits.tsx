@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Target, AlertTriangle, CheckCircle, Edit3, Save, Check } from 'lucide-react';
-import { Category, Transaction } from '../types/finance';
+import { Category, CreditCardExpense, Transaction } from '../types/finance';
 import { formatBRL, formatMonthYear } from '../utils/formatters';
 
 interface BudgetLimitsProps {
   categories: Category[];
   transactions: Transaction[];
+  creditCardExpenses?: CreditCardExpense[];
   currentMonthKey: string;
   onUpdateCategoryBudget: (categoryId: string, newBudget: number) => void;
 }
@@ -13,6 +14,7 @@ interface BudgetLimitsProps {
 export const BudgetLimits: React.FC<BudgetLimitsProps> = ({
   categories,
   transactions,
+  creditCardExpenses = [],
   currentMonthKey,
   onUpdateCategoryBudget,
 }) => {
@@ -21,18 +23,23 @@ export const BudgetLimits: React.FC<BudgetLimitsProps> = ({
 
   const expenseCategories = categories.filter((c) => c.type === 'expense' || c.type === 'both');
 
-  // Compute spent amount per category for current month
-  const currentMonthExpenses = transactions.filter(
-    (t) => t.type === 'expense' && t.dueDate.startsWith(currentMonthKey)
+  // Compute spent amount per category for current month (regular non-invoice + credit card)
+  const regularExpenses = transactions.filter(
+    (t) => t.type === 'expense' && t.dueDate.startsWith(currentMonthKey) && !t.isCreditCardInvoice && t.categoryId !== 'cat_cartao'
   );
 
   const spentPerCat = new Map<string, number>();
-  currentMonthExpenses.forEach((t) => {
+  regularExpenses.forEach((t) => {
     spentPerCat.set(t.categoryId, (spentPerCat.get(t.categoryId) || 0) + t.amount);
   });
 
+  const monthCC = creditCardExpenses.filter((c) => c.referenceMonth === currentMonthKey);
+  monthCC.forEach((c) => {
+    spentPerCat.set(c.categoryId, (spentPerCat.get(c.categoryId) || 0) + c.amount);
+  });
+
   const totalBudget = expenseCategories.reduce((sum, c) => sum + (c.monthlyBudget || 0), 0);
-  const totalSpent = currentMonthExpenses.reduce((sum, t) => sum + t.amount, 0);
+  const totalSpent = Array.from(spentPerCat.values()).reduce((sum, v) => sum + v, 0);
 
   const handleStartEdit = (cat: Category) => {
     setEditingId(cat.id);

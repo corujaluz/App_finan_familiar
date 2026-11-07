@@ -11,9 +11,16 @@ import {
   Info,
   Briefcase,
   CreditCard,
+  Target,
+  ChevronDown,
+  ChevronUp,
+  Layers,
+  Calendar,
+  AlertTriangle,
+  ArrowRight,
 } from 'lucide-react';
 import { Category, CreditCardExpense, FamilyMember, IncomeSource, Transaction } from '../types/finance';
-import { formatBRL, formatMonthYear } from '../utils/formatters';
+import { formatBRL, formatDateBR, formatMonthYear } from '../utils/formatters';
 
 interface ChartsAnalyticsProps {
   transactions: Transaction[];
@@ -32,8 +39,9 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
   creditCardExpenses = [],
   currentMonthKey,
 }) => {
-  const [activeTab, setActiveTab] = useState<'categories' | 'monthly_flow' | 'credit_card' | 'income_sources' | 'members' | 'status'>('categories');
+  const [activeTab, setActiveTab] = useState<'categories' | 'budgets_vs_actual' | 'credit_card' | 'income_sources' | 'monthly_flow' | 'members' | 'status'>('categories');
   const [hoveredSlice, setHoveredSlice] = useState<string | null>(null);
+  const [selectedCategoryForDrilldown, setSelectedCategoryForDrilldown] = useState<string | null>(null);
 
   // Controles de exibição de Cartão de Crédito nos gráficos (marcar e desmarcar!)
   const [includeDetailedCardExpenses, setIncludeDetailedCardExpenses] = useState<boolean>(true);
@@ -111,6 +119,90 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
   }, [
     currentMonthTx,
     categoryMap,
+    creditCardExpenses,
+    currentMonthKey,
+    includeDetailedCardExpenses,
+    includeInvoiceTransactionInCharts,
+    cardInvoiceTx,
+  ]);
+
+  // Detailed Budget vs. Actual (Lançamentos vs. Orçamentos) data
+  const budgetVsActualData = useMemo(() => {
+    const expenseCategories = categories.filter((c) => c.type === 'expense' || c.type === 'both');
+
+    const items = expenseCategories.map((cat) => {
+      // 1. Transactions (lançamentos regulares)
+      const catTransactions = currentMonthTx.filter(
+        (t) => t.type === 'expense' && t.categoryId === cat.id && !t.isCreditCardInvoice && t.categoryId !== 'cat_cartao'
+      );
+
+      // 2. Cartão de Crédito expenses
+      const catCreditCard = includeDetailedCardExpenses
+        ? creditCardExpenses.filter((c) => c.referenceMonth === currentMonthKey && c.categoryId === cat.id)
+        : [];
+
+      // 3. Invoice if applicable
+      const catInvoice = cat.id === 'cat_cartao' && includeInvoiceTransactionInCharts && cardInvoiceTx
+        ? [cardInvoiceTx]
+        : [];
+
+      const txSpent = catTransactions.reduce((sum, t) => sum + t.amount, 0);
+      const cardSpent = catCreditCard.reduce((sum, c) => sum + c.amount, 0);
+      const invoiceSpent = catInvoice.reduce((sum, t) => sum + t.amount, 0);
+      const totalSpent = txSpent + cardSpent + invoiceSpent;
+
+      const budget = cat.monthlyBudget || 0;
+      const difference = budget - totalSpent; // > 0 means within budget, < 0 means over budget
+      const percentage = budget > 0 ? (totalSpent / budget) * 100 : 0;
+
+      let status: 'ok' | 'warning' | 'danger' | 'no_budget' = 'ok';
+      if (budget === 0) {
+        status = 'no_budget';
+      } else if (percentage > 100) {
+        status = 'danger';
+      } else if (percentage >= 80) {
+        status = 'warning';
+      }
+
+      return {
+        category: cat,
+        budget,
+        totalSpent,
+        txSpent,
+        cardSpent,
+        difference,
+        percentage,
+        status,
+        transactions: catTransactions,
+        creditCardExpenses: catCreditCard,
+        totalItemsCount: catTransactions.length + catCreditCard.length,
+      };
+    });
+
+    // Sort by percentage of budget used descending (highest alerts first)
+    const sorted = [...items].sort((a, b) => {
+      if (a.budget === 0 && b.budget > 0) return 1;
+      if (b.budget === 0 && a.budget > 0) return -1;
+      return b.percentage - a.percentage;
+    });
+
+    const totalBudget = expenseCategories.reduce((sum, c) => sum + (c.monthlyBudget || 0), 0);
+    const totalSpentAll = sorted.reduce((sum, i) => sum + i.totalSpent, 0);
+    const totalRemaining = totalBudget - totalSpentAll;
+    const overallPercentage = totalBudget > 0 ? (totalSpentAll / totalBudget) * 100 : 0;
+    const alertCount = sorted.filter((i) => i.status === 'warning' || i.status === 'danger').length;
+
+    return {
+      items: sorted,
+      totalBudget,
+      totalSpentAll,
+      totalRemaining,
+      overallPercentage,
+      alertCount,
+    };
+  }, [
+    categories,
+    currentMonthTx,
     creditCardExpenses,
     currentMonthKey,
     includeDetailedCardExpenses,
@@ -401,6 +493,22 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
             <span>Despesas por Categoria</span>
           </button>
           <button
+            onClick={() => setActiveTab('budgets_vs_actual')}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors ${
+              activeTab === 'budgets_vs_actual'
+                ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+            }`}
+          >
+            <Target className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+            <span>Lançamentos vs. Orçamentos</span>
+            {budgetVsActualData.alertCount > 0 && (
+              <span className="px-1.5 py-0.5 bg-rose-500 text-white rounded-full text-[10px] font-bold">
+                {budgetVsActualData.alertCount}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setActiveTab('credit_card')}
             className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors ${
               activeTab === 'credit_card'
@@ -578,15 +686,25 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
               </p>
             ) : (
               <div className="space-y-3.5">
+                <p className="text-[11px] text-slate-400 mb-1">
+                  💡 Clique em qualquer categoria para abrir o detalhamento de <strong>Lançamentos</strong> e <strong>Orçamentos</strong>.
+                </p>
                 {categoryExpenses.items.map((item) => {
                   const isHovered = hoveredSlice === item.id;
+                  const isSelected = selectedCategoryForDrilldown === item.id;
+                  const catBudget = categoryMap.get(item.id)?.monthlyBudget || 0;
+                  const isOverBudget = catBudget > 0 && item.amount > catBudget;
+
                   return (
                     <div
                       key={item.id}
+                      onClick={() => setSelectedCategoryForDrilldown(isSelected ? null : item.id)}
                       onMouseEnter={() => setHoveredSlice(item.id)}
                       onMouseLeave={() => setHoveredSlice(null)}
-                      className={`p-2.5 rounded-lg border transition-all ${
-                        isHovered
+                      className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-400/20'
+                          : isHovered
                           ? 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700'
                           : 'border-transparent hover:bg-slate-50/60 dark:hover:bg-slate-800/40'
                       }`}
@@ -600,6 +718,15 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
                           <span className="font-semibold text-slate-900 dark:text-white">
                             {item.name}
                           </span>
+                          {catBudget > 0 && (
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${
+                              isOverBudget
+                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
+                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                            }`}>
+                              Orçado: {formatBRL(catBudget)}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-3 tabular-nums">
                           <span className="font-bold text-slate-900 dark:text-white">
@@ -626,6 +753,420 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
                 })}
               </div>
             )}
+          </div>
+
+          {/* Drilldown Panel for Selected Category */}
+          {selectedCategoryForDrilldown && (() => {
+            const cat = categoryMap.get(selectedCategoryForDrilldown);
+            const budgetItem = budgetVsActualData.items.find((i) => i.category.id === selectedCategoryForDrilldown);
+            if (!cat) return null;
+
+            return (
+              <div className="lg:col-span-12 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800/60 rounded-xl p-5 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className="w-3.5 h-3.5 rounded-full shrink-0"
+                      style={{ backgroundColor: cat.color }}
+                    />
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>Detalhamento: {cat.name}</span>
+                        <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                          (Lançamentos & Orçamento)
+                        </span>
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Itens computados nesta categoria no mês de {formatMonthYear(currentMonthKey)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 text-xs">
+                    {budgetItem && budgetItem.budget > 0 && (
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Orçamento</span>
+                          <strong className="text-slate-900 dark:text-white tabular-nums font-bold">
+                            {formatBRL(budgetItem.budget)}
+                          </strong>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Realizado</span>
+                          <strong className="text-indigo-600 dark:text-indigo-400 tabular-nums font-bold">
+                            {formatBRL(budgetItem.totalSpent)}
+                          </strong>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Saldo</span>
+                          <strong
+                            className={`tabular-nums font-bold ${
+                              budgetItem.difference >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                            }`}
+                          >
+                            {formatBRL(budgetItem.difference)}
+                          </strong>
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => setSelectedCategoryForDrilldown(null)}
+                      className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800"
+                    >
+                      Fechar Detalhes
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grid of underlying transactions and card expenses */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Lançamentos Regulares */}
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3.5 border border-slate-200/70 dark:border-slate-700/60 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      <span>Lançamentos Diretos ({budgetItem?.transactions.length || 0})</span>
+                      <span className="tabular-nums text-slate-900 dark:text-white font-bold">
+                        {formatBRL(budgetItem?.txSpent || 0)}
+                      </span>
+                    </div>
+
+                    {!budgetItem || budgetItem.transactions.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-3 text-center">Nenhum lançamento direto.</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 text-xs">
+                        {budgetItem.transactions.map((tx) => {
+                          const mem = memberMap.get(tx.memberId);
+                          return (
+                            <div
+                              key={tx.id}
+                              className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between"
+                            >
+                              <div className="truncate max-w-[170px] sm:max-w-xs">
+                                <div className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                  {tx.title}
+                                </div>
+                                <div className="text-[10px] text-slate-400">
+                                  {formatDateBR(tx.dueDate)} · {mem?.name || 'Família'}
+                                </div>
+                              </div>
+                              <span className="font-bold tabular-nums text-slate-900 dark:text-white">
+                                {formatBRL(tx.amount)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Gastos no Cartão de Crédito */}
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3.5 border border-slate-200/70 dark:border-slate-700/60 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      <span>Gastos no Cartão de Crédito ({budgetItem?.creditCardExpenses.length || 0})</span>
+                      <span className="tabular-nums text-indigo-600 dark:text-indigo-400 font-bold">
+                        {formatBRL(budgetItem?.cardSpent || 0)}
+                      </span>
+                    </div>
+
+                    {!budgetItem || budgetItem.creditCardExpenses.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-3 text-center">Nenhum gasto no cartão nesta categoria.</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 text-xs">
+                        {budgetItem.creditCardExpenses.map((c) => {
+                          const mem = memberMap.get(c.memberId);
+                          return (
+                            <div
+                              key={c.id}
+                              className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between"
+                            >
+                              <div className="truncate max-w-[170px] sm:max-w-xs">
+                                <div className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                  {c.description}
+                                </div>
+                                <div className="text-[10px] text-slate-400">
+                                  {formatDateBR(c.purchaseDate)} · {c.cardName} · {mem?.name || 'Família'}
+                                  {c.installmentsTotal && c.installmentsTotal > 1 ? ` (${c.installmentsCurrent || 1}/${c.installmentsTotal})` : ''}
+                                </div>
+                              </div>
+                              <span className="font-bold tabular-nums text-indigo-600 dark:text-indigo-400">
+                                {formatBRL(c.amount)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Tab: Lançamentos vs. Orçamentos (Orçado vs. Realizado com Interação Completa) */}
+      {activeTab === 'budgets_vs_actual' && (
+        <div className="space-y-6">
+          {/* Header Summary */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                  <Target className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Interação: Lançamentos vs. Orçamentos
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Acompanhamento do teto orçamentário contra saídas reais (Lançamentos + Cartão de Crédito) em {formatMonthYear(currentMonthKey)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 text-xs">
+                <div className="text-right">
+                  <span className="text-slate-500 dark:text-slate-400 block text-[11px]">Total Orçado</span>
+                  <strong className="text-slate-900 dark:text-white text-sm tabular-nums">
+                    {formatBRL(budgetVsActualData.totalBudget)}
+                  </strong>
+                </div>
+                <div className="h-8 w-px bg-slate-200 dark:border-slate-700" />
+                <div className="text-right">
+                  <span className="text-slate-500 dark:text-slate-400 block text-[11px]">Total Realizado</span>
+                  <strong className="text-rose-600 dark:text-rose-400 text-sm tabular-nums">
+                    {formatBRL(budgetVsActualData.totalSpentAll)}
+                  </strong>
+                </div>
+                <div className="h-8 w-px bg-slate-200 dark:border-slate-700" />
+                <div className="text-right">
+                  <span className="text-slate-500 dark:text-slate-400 block text-[11px]">Saldo Geral</span>
+                  <strong
+                    className={`text-sm tabular-nums ${
+                      budgetVsActualData.totalRemaining >= 0
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-rose-600 dark:text-rose-400'
+                    }`}
+                  >
+                    {formatBRL(budgetVsActualData.totalRemaining)}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Overall Progress Bar */}
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-semibold text-slate-700 dark:text-slate-300">
+                  Execução Orçamentária Geral do Mês
+                </span>
+                <span className="font-bold tabular-nums text-slate-900 dark:text-white">
+                  {budgetVsActualData.overallPercentage.toFixed(1)}% utilizado
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    budgetVsActualData.overallPercentage > 100
+                      ? 'bg-rose-500'
+                      : budgetVsActualData.overallPercentage >= 80
+                      ? 'bg-amber-500'
+                      : 'bg-emerald-500'
+                  }`}
+                  style={{ width: `${Math.min(100, Math.max(3, budgetVsActualData.overallPercentage))}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Category Comparison Table */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xs overflow-hidden">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Categorias: Orçado vs. Realizado (Clique para abrir lançamentos)
+              </h4>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {budgetVsActualData.items.length} categorias de despesa
+              </span>
+            </div>
+
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {budgetVsActualData.items.map((item) => {
+                const isExpanded = selectedCategoryForDrilldown === item.category.id;
+
+                return (
+                  <div key={item.category.id} className="transition-colors">
+                    {/* Main Row */}
+                    <div
+                      onClick={() => setSelectedCategoryForDrilldown(isExpanded ? null : item.category.id)}
+                      className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${
+                        isExpanded ? 'bg-slate-50 dark:bg-slate-800/60' : ''
+                      }`}
+                    >
+                      {/* Left: Category info */}
+                      <div className="flex items-center gap-3 min-w-[200px]">
+                        <span
+                          className="w-3.5 h-3.5 rounded-full shrink-0"
+                          style={{ backgroundColor: item.category.color }}
+                        />
+                        <div>
+                          <div className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                            <span>{item.category.name}</span>
+                            {item.status === 'danger' && (
+                              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.2 rounded">
+                                Estourado
+                              </span>
+                            )}
+                            {item.status === 'warning' && (
+                              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.2 rounded">
+                                Atenção (&gt;80%)
+                              </span>
+                            )}
+                            {item.status === 'ok' && item.budget > 0 && (
+                              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded">
+                                No Limite
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                            <span>{item.transactions.length} lançamentos</span>
+                            <span>·</span>
+                            <span>{item.creditCardExpenses.length} compras no cartão</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Middle: Progress bar */}
+                      <div className="flex-1 max-w-xs space-y-1">
+                        <div className="flex justify-between text-[11px]">
+                          <span className="text-slate-500 dark:text-slate-400">
+                            {item.budget > 0 ? `${item.percentage.toFixed(0)}% da meta` : 'Sem teto definido'}
+                          </span>
+                          <span className="tabular-nums font-semibold text-slate-700 dark:text-slate-300">
+                            {formatBRL(item.totalSpent)} / {item.budget > 0 ? formatBRL(item.budget) : 'Livre'}
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              item.status === 'danger'
+                                ? 'bg-rose-500'
+                                : item.status === 'warning'
+                                ? 'bg-amber-500'
+                                : 'bg-emerald-500'
+                            }`}
+                            style={{
+                              width: `${item.budget > 0 ? Math.min(100, Math.max(3, item.percentage)) : 0}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Right: Amounts & Toggle */}
+                      <div className="flex items-center gap-4 text-xs self-end sm:self-auto tabular-nums">
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block">Saldo Restante</span>
+                          <strong
+                            className={`font-bold ${
+                              item.difference >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                            }`}
+                          >
+                            {item.budget > 0 ? formatBRL(item.difference) : 'N/A'}
+                          </strong>
+                        </div>
+
+                        <div className="text-slate-400 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700">
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expanded Drilldown Content */}
+                    {isExpanded && (
+                      <div className="p-4 bg-slate-50/80 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+                          {/* Lançamentos */}
+                          <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700 space-y-2">
+                            <div className="flex justify-between items-center font-bold text-slate-800 dark:text-slate-200">
+                              <span>Lançamentos Registrados ({item.transactions.length})</span>
+                              <span className="tabular-nums text-slate-900 dark:text-white">
+                                Subtotal: {formatBRL(item.txSpent)}
+                              </span>
+                            </div>
+
+                            {item.transactions.length === 0 ? (
+                              <p className="text-slate-400 py-3 text-center text-xs">Nenhum lançamento direto registrado.</p>
+                            ) : (
+                              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                {item.transactions.map((tx) => {
+                                  const mem = memberMap.get(tx.memberId);
+                                  return (
+                                    <div
+                                      key={tx.id}
+                                      className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 flex justify-between items-center"
+                                    >
+                                      <div>
+                                        <div className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-xs">
+                                          {tx.title}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400">
+                                          {formatDateBR(tx.dueDate)} · {mem?.name || 'Família'} · {tx.status === 'paid' ? 'Pago' : 'Pendente'}
+                                        </div>
+                                      </div>
+                                      <span className="font-bold tabular-nums text-slate-900 dark:text-white">
+                                        {formatBRL(tx.amount)}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Cartão de Crédito */}
+                          <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700 space-y-2">
+                            <div className="flex justify-between items-center font-bold text-slate-800 dark:text-slate-200">
+                              <span>Compras no Cartão de Crédito ({item.creditCardExpenses.length})</span>
+                              <span className="tabular-nums text-indigo-600 dark:text-indigo-400">
+                                Subtotal: {formatBRL(item.cardSpent)}
+                              </span>
+                            </div>
+
+                            {item.creditCardExpenses.length === 0 ? (
+                              <p className="text-slate-400 py-3 text-center text-xs">Nenhuma compra no cartão nesta categoria.</p>
+                            ) : (
+                              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                {item.creditCardExpenses.map((c) => {
+                                  const mem = memberMap.get(c.memberId);
+                                  return (
+                                    <div
+                                      key={c.id}
+                                      className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 flex justify-between items-center"
+                                    >
+                                      <div>
+                                        <div className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-xs">
+                                          {c.description}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400">
+                                          {formatDateBR(c.purchaseDate)} · {c.cardName} · {mem?.name || 'Família'}
+                                          {c.installmentsTotal && c.installmentsTotal > 1 ? ` (${c.installmentsCurrent || 1}/${c.installmentsTotal})` : ''}
+                                        </div>
+                                      </div>
+                                      <span className="font-bold tabular-nums text-indigo-600 dark:text-indigo-400">
+                                        {formatBRL(c.amount)}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

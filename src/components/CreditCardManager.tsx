@@ -804,9 +804,9 @@ export const CreditCardManager: React.FC<CreditCardManagerProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Chart 1: Por Cartão */}
-            <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-2xs space-y-4">
+            <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4 min-w-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CreditCard className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
@@ -856,7 +856,7 @@ export const CreditCardManager: React.FC<CreditCardManagerProps> = ({
             </div>
 
             {/* Chart 2: Por Membro da Família */}
-            <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-2xs space-y-4">
+            <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4 min-w-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-violet-600 dark:text-violet-400" />
@@ -876,19 +876,19 @@ export const CreditCardManager: React.FC<CreditCardManagerProps> = ({
                   {byMemberBreakdown.map((item) => (
                     <div key={item.id} className="space-y-1.5">
                       <div className="flex justify-between items-center text-xs">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
                           <span
                             className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
                             style={{ backgroundColor: item.color }}
                           >
                             {item.avatarInitials}
                           </span>
-                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
                             {item.name}
                           </span>
-                          <span className="text-[11px] text-slate-400 font-normal">({item.count} compras)</span>
+                          <span className="text-[11px] text-slate-400 font-normal shrink-0">({item.count} compras)</span>
                         </div>
-                        <div className="flex items-center gap-2 tabular-nums">
+                        <div className="flex items-center gap-2 tabular-nums shrink-0 ml-2">
                           <span className="font-bold text-slate-900 dark:text-white">
                             {formatBRL(item.total)}
                           </span>
@@ -913,7 +913,7 @@ export const CreditCardManager: React.FC<CreditCardManagerProps> = ({
             </div>
 
             {/* Chart 3: Por Categoria de Despesa */}
-            <div className="lg:col-span-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-2xs space-y-4">
+            <div className="lg:col-span-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4 min-w-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <PieChart className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -969,7 +969,7 @@ export const CreditCardManager: React.FC<CreditCardManagerProps> = ({
             </div>
 
             {/* Chart 4: Modalidade e Conciliação */}
-            <div className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-2xs space-y-5">
+            <div className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-5 min-w-0">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
                   <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />

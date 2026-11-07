@@ -571,70 +571,99 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
       </div>
 
       {/* Credit Card Chart Settings Bar (opção de marcar e desmarcar o item de cartão de crédito) */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2">
-          <CreditCard className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-          <span className="font-semibold text-slate-900 dark:text-white">
-            Participação do Cartão de Crédito nos Gráficos:
-          </span>
+      <div className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3.5 min-w-0 overflow-hidden">
+        <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100 dark:border-slate-800/80">
+          <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+            <CreditCard className="w-4 h-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+              Participação do Cartão de Crédito nos Gráficos
+            </h4>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Marque ou desmarque para incluir ou excluir dos cálculos e gráficos visuais
+            </p>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full min-w-0">
+          {/* Opção 1: Gastos Detalhados */}
+          <label
+            className={`flex items-start sm:items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer min-w-0 ${
+              includeDetailedCardExpenses
+                ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/80 ring-1 ring-indigo-500/20'
+                : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
             <input
               type="checkbox"
               checked={includeDetailedCardExpenses}
               onChange={(e) => setIncludeDetailedCardExpenses(e.target.checked)}
-              className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+              className="mt-0.5 sm:mt-0 rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 shrink-0"
             />
-            <span>
-              Incluir Gastos Detalhados do Cartão (
-              <strong className="text-indigo-600 dark:text-indigo-400 tabular-nums">
-                {formatBRL(creditCardTotalThisMonth)}
-              </strong>
-              )
-            </span>
+            <div className="min-w-0 flex-1 text-xs">
+              <span className="font-semibold text-slate-900 dark:text-white block leading-tight">
+                Incluir Gastos Detalhados do Cartão
+              </span>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Total detalhado:</span>
+                <span className="font-bold text-indigo-600 dark:text-indigo-400 tabular-nums">
+                  {formatBRL(creditCardTotalThisMonth)}
+                </span>
+              </div>
+            </div>
           </label>
 
+          {/* Opção 2: Item Cartão dos Lançamentos */}
           <label
-            className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+            className={`flex items-start sm:items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer min-w-0 ${
+              includeInvoiceTransactionInCharts
+                ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/80 ring-1 ring-indigo-500/20'
+                : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
             title="Marcar ou desmarcar a visualização da fatura registrada nos Lançamentos neste gráfico"
           >
             <input
               type="checkbox"
               checked={includeInvoiceTransactionInCharts}
               onChange={(e) => setIncludeInvoiceTransactionInCharts(e.target.checked)}
-              className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+              className="mt-0.5 sm:mt-0 rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 shrink-0"
             />
-            <span className="flex items-center gap-1">
-              <span>Marcar item "Cartão de Crédito" dos Lançamentos</span>
-              {cardInvoiceAmount > 0 && (
-                <span className="font-bold tabular-nums text-slate-900 dark:text-white">
-                  ({formatBRL(cardInvoiceAmount)})
+            <div className="min-w-0 flex-1 text-xs">
+              <span className="font-semibold text-slate-900 dark:text-white block leading-tight">
+                Marcar item "Cartão de Crédito" dos Lançamentos
+              </span>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Fatura lançada:</span>
+                <span className="font-bold text-slate-900 dark:text-white tabular-nums">
+                  {cardInvoiceAmount > 0 ? formatBRL(cardInvoiceAmount) : 'R$ 0,00'}
                 </span>
-              )}
-            </span>
+              </div>
+            </div>
           </label>
         </div>
       </div>
 
       {/* Tab 1: Despesas por Categoria */}
       {activeTab === 'categories' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Donut Chart Visualizer */}
-          <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-2xs flex flex-col items-center justify-center">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2 self-start">
-              Composição das Saídas
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 self-start">
-              Onde o orçamento familiar foi distribuído neste mês
-            </p>
+          <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xs flex flex-col items-center justify-start space-y-5 min-w-0">
+            <div className="w-full text-left">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Composição das Saídas
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Onde o orçamento familiar foi distribuído neste mês
+              </p>
+            </div>
 
             {categoryExpenses.total === 0 ? (
               <div className="text-center py-10">
                 <p className="text-xs text-slate-400">Nenhuma despesa registrada neste mês.</p>
               </div>
             ) : (
-              <div className="relative w-[220px] h-[220px]">
+              <div className="relative w-[210px] h-[210px] sm:w-[220px] sm:h-[220px] my-2">
                 <svg viewBox="0 0 220 220" className="w-full h-full transform -rotate-90">
                   {donutSlices.map((slice) => {
                     const isHovered = hoveredSlice === slice.id;
@@ -670,13 +699,18 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
           </div>
 
           {/* Category List & Progress Bars */}
-          <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-2xs">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                Ranking de Gastos por Categoria
-              </h3>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                Percentual sobre o total de saídas
+          <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xs min-w-0 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-1">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Ranking de Gastos por Categoria
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Percentual sobre o total de saídas do mês
+                </p>
+              </div>
+              <span className="text-[11px] text-slate-400 hidden sm:inline">
+                {categoryExpenses.items.length} categorias
               </span>
             </div>
 
@@ -685,10 +719,12 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
                 Sem despesas para calcular o ranking.
               </p>
             ) : (
-              <div className="space-y-3.5">
-                <p className="text-[11px] text-slate-400 mb-1">
-                  💡 Clique em qualquer categoria para abrir o detalhamento de <strong>Lançamentos</strong> e <strong>Orçamentos</strong>.
-                </p>
+              <div className="space-y-3">
+                <div className="p-2.5 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <span>💡</span>
+                  <span>Clique em qualquer categoria para abrir o detalhamento de <strong>Lançamentos</strong> e <strong>Orçamentos</strong>.</span>
+                </div>
+
                 {categoryExpenses.items.map((item) => {
                   const isHovered = hoveredSlice === item.id;
                   const isSelected = selectedCategoryForDrilldown === item.id;
@@ -701,38 +737,45 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
                       onClick={() => setSelectedCategoryForDrilldown(isSelected ? null : item.id)}
                       onMouseEnter={() => setHoveredSlice(item.id)}
                       onMouseLeave={() => setHoveredSlice(null)}
-                      className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                      className={`p-3 rounded-xl border cursor-pointer transition-all min-w-0 ${
                         isSelected
-                          ? 'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-400/20'
+                          ? 'bg-indigo-50/90 dark:bg-indigo-950/50 border-indigo-500 dark:border-indigo-500 ring-2 ring-indigo-500/20'
                           : isHovered
                           ? 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700'
-                          : 'border-transparent hover:bg-slate-50/60 dark:hover:bg-slate-800/40'
+                          : 'bg-white dark:bg-slate-900/60 border-slate-100 dark:border-slate-800/80 hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
                       }`}
                     >
-                      <div className="flex items-center justify-between text-xs mb-1.5">
-                        <div className="flex items-center gap-2">
+                      {/* Top Row: Category Name + Budget Badge + Amount + Percentage */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs mb-2 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 flex-wrap flex-1">
                           <span
-                            className="w-3 h-3 rounded-full shrink-0"
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
                             style={{ backgroundColor: item.color }}
                           />
-                          <span className="font-semibold text-slate-900 dark:text-white">
+                          <span
+                            className="font-semibold text-slate-900 dark:text-white truncate max-w-[200px] sm:max-w-[280px]"
+                            title={item.name}
+                          >
                             {item.name}
                           </span>
                           {catBudget > 0 && (
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${
-                              isOverBudget
-                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                            }`}>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap ${
+                                isOverBudget
+                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                              }`}
+                            >
                               Orçado: {formatBRL(catBudget)}
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 tabular-nums">
-                          <span className="font-bold text-slate-900 dark:text-white">
+
+                        <div className="flex items-center justify-between sm:justify-end gap-2.5 tabular-nums shrink-0 ml-auto sm:ml-0">
+                          <span className="font-bold text-slate-900 dark:text-white whitespace-nowrap">
                             {formatBRL(item.amount)}
                           </span>
-                          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 w-12 text-right">
+                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 min-w-[38px] text-right">
                             {item.percentage.toFixed(1)}%
                           </span>
                         </div>
@@ -743,7 +786,7 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
                         <div
                           className="h-full rounded-full transition-all duration-300"
                           style={{
-                            width: `${Math.min(100, item.percentage)}%`,
+                            width: `${Math.min(100, Math.max(2, item.percentage))}%`,
                             backgroundColor: item.color,
                           }}
                         />
@@ -762,7 +805,7 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
             if (!cat) return null;
 
             return (
-              <div className="lg:col-span-12 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800/60 rounded-xl p-5 shadow-xs space-y-4">
+              <div className="lg:col-span-12 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4 min-w-0">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2.5">
                     <span
@@ -907,7 +950,7 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
       {activeTab === 'budgets_vs_actual' && (
         <div className="space-y-6">
           {/* Header Summary */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-2xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xs min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center">
@@ -979,8 +1022,8 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
           </div>
 
           {/* Interactive Category Comparison Table */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xs overflow-hidden">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xs overflow-hidden min-w-0">
+            <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Categorias: Orçado vs. Realizado (Clique para abrir lançamentos)
               </h4>
@@ -1003,26 +1046,26 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
                       }`}
                     >
                       {/* Left: Category info */}
-                      <div className="flex items-center gap-3 min-w-[200px]">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         <span
                           className="w-3.5 h-3.5 rounded-full shrink-0"
                           style={{ backgroundColor: item.category.color }}
                         />
-                        <div>
-                          <div className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                            <span>{item.category.name}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                            <span className="truncate" title={item.category.name}>{item.category.name}</span>
                             {item.status === 'danger' && (
-                              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.2 rounded">
+                              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.2 rounded shrink-0">
                                 Estourado
                               </span>
                             )}
                             {item.status === 'warning' && (
-                              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.2 rounded">
+                              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.2 rounded shrink-0">
                                 Atenção (&gt;80%)
                               </span>
                             )}
                             {item.status === 'ok' && item.budget > 0 && (
-                              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded">
+                              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded shrink-0">
                                 No Limite
                               </span>
                             )}
@@ -1036,7 +1079,7 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
                       </div>
 
                       {/* Middle: Progress bar */}
-                      <div className="flex-1 max-w-xs space-y-1">
+                      <div className="w-full sm:w-64 sm:max-w-xs space-y-1 shrink-0">
                         <div className="flex justify-between text-[11px]">
                           <span className="text-slate-500 dark:text-slate-400">
                             {item.budget > 0 ? `${item.percentage.toFixed(0)}% da meta` : 'Sem teto definido'}

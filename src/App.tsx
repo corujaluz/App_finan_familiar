@@ -19,7 +19,7 @@ import { playAlarmSound } from './utils/soundAlarm';
 import { AlarmSettings, Category, CreditCardExpense, FamilyMember, IncomeSource, PaymentMethod, Transaction, UserAccount } from './types/finance';
 import { INITIAL_CATEGORIES, INITIAL_CREDIT_CARD_EXPENSES, INITIAL_INCOME_SOURCES, INITIAL_MEMBERS, INITIAL_TRANSACTIONS } from './data/initialData';
 import { formatBRL, formatMonthYear } from './utils/formatters';
-import { ArrowDownLeft, ArrowUpRight, CheckCircle2, ShieldAlert, Briefcase, Bell, CreditCard, Lock, LogOut } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, CheckCircle2, ShieldAlert, Briefcase, Bell, CreditCard, Lock, LogOut, PieChart, BarChart3, TrendingDown, ArrowRight } from 'lucide-react';
 
 export default function App() {
   // Theme state
@@ -233,6 +233,41 @@ export default function App() {
   const monthTransactions = useMemo(() => {
     return appState.transactions.filter((tx) => tx.dueDate.startsWith(currentMonthKey));
   }, [appState.transactions, currentMonthKey]);
+
+  // Top categories preview for quick analytics sidebar
+  const topCategoriesPreview = useMemo(() => {
+    const expenses = monthTransactions.filter((tx) => tx.type === 'expense');
+    const catMap = new Map<string, number>();
+    expenses.forEach((tx) => {
+      catMap.set(tx.categoryId, (catMap.get(tx.categoryId) || 0) + tx.amount);
+    });
+    // Add detailed card expenses
+    const cardExpenses = (appState.creditCardExpenses || []).filter(
+      (c) => c.referenceMonth === currentMonthKey
+    );
+    cardExpenses.forEach((c) => {
+      catMap.set(c.categoryId, (catMap.get(c.categoryId) || 0) + c.amount);
+    });
+
+    const total = Array.from(catMap.values()).reduce((acc, val) => acc + val, 0);
+    const categoryInfoMap = new Map(appState.categories.map((c) => [c.id, c]));
+
+    const items = Array.from(catMap.entries())
+      .map(([catId, amount]) => {
+        const cat = categoryInfoMap.get(catId);
+        return {
+          id: catId,
+          name: cat?.name || 'Outros',
+          color: cat?.color || '#94a3b8',
+          amount,
+          percentage: total > 0 ? (amount / total) * 100 : 0,
+        };
+      })
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 4);
+
+    return { total, items };
+  }, [monthTransactions, appState.creditCardExpenses, currentMonthKey, appState.categories]);
 
   // Today reference date
   const todayStr = new Date().toISOString().split('T')[0];
@@ -835,35 +870,107 @@ export default function App() {
                 </div>
 
                 {/* Visual mini-charts preview */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-2xs">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                      Análise Gráfica Rápida
-                    </h3>
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-2xs space-y-3.5 min-w-0 overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <PieChart className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider truncate">
+                        Análise Rápida de Gastos
+                      </h3>
+                    </div>
                     <button
                       onClick={() => setCurrentTab('charts')}
-                      className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                      className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 shrink-0 ml-2"
                     >
-                      Abrir Gráficos &rarr;
+                      <span>Abrir Gráficos</span>
+                      <ArrowRight className="w-3 h-3" />
                     </button>
                   </div>
 
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-                    Composição e distribuição das saídas em {formatMonthYear(currentMonthKey)}
-                  </p>
-
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <ChartsAnalytics
-                      transactions={appState.transactions}
-                      creditCardExpenses={appState.creditCardExpenses}
-                      categories={appState.categories}
-                      members={appState.members}
-                      incomeSources={appState.incomeSources}
-                      currentMonthKey={currentMonthKey}
-                    />
+                  <div className="flex items-baseline justify-between text-xs pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-500 dark:text-slate-400">Total de Despesas:</span>
+                    <strong className="text-sm font-black text-rose-600 dark:text-rose-400 tabular-nums">
+                      {formatBRL(topCategoriesPreview.total)}
+                    </strong>
                   </div>
+
+                  {topCategoriesPreview.items.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-3 text-center">
+                      Nenhuma despesa registrada neste mês.
+                    </p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {topCategoriesPreview.items.map((item) => (
+                        <div key={item.id} className="space-y-1 text-xs">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-2">
+                              <span
+                                className="w-2.5 h-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: item.color }}
+                              />
+                              <span className="truncate font-medium text-slate-800 dark:text-slate-200" title={item.name}>
+                                {item.name}
+                              </span>
+                            </div>
+                            <span className="font-bold text-slate-900 dark:text-white tabular-nums shrink-0">
+                              {formatBRL(item.amount)}
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-300"
+                              style={{
+                                width: `${Math.min(100, Math.max(2, item.percentage))}%`,
+                                backgroundColor: item.color,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setCurrentTab('charts')}
+                    className="w-full py-2.5 px-3 mt-1 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>Ver Painel Completo de Gráficos</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
+            </div>
+
+            {/* Seção Gráfica Familiar Completa na Visão Geral (Full Width) */}
+            <div className="mt-8 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    <span>Painel Gráfico & Orçamentário Familiar</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Acompanhamento visual completo de despesas, metas orçamentárias e cartão de crédito em {formatMonthYear(currentMonthKey)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setCurrentTab('charts')}
+                  className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 self-start sm:self-center"
+                >
+                  <span>Ir para tela dedicada de Gráficos</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <ChartsAnalytics
+                transactions={appState.transactions}
+                creditCardExpenses={appState.creditCardExpenses}
+                categories={appState.categories}
+                members={appState.members}
+                incomeSources={appState.incomeSources}
+                currentMonthKey={currentMonthKey}
+              />
             </div>
           </div>
         )}

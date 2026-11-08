@@ -1,4 +1,4 @@
-import { AlarmSettings, Category, CreditCardExpense, CreditCardPresetItem, FamilyMember, IncomeSource, Transaction, UserAccount } from '../types/finance';
+import { AlarmSettings, Category, ChangeLogEntry, CreditCardExpense, CreditCardPresetItem, FamilyMember, IncomeSource, Transaction, UserAccount } from '../types/finance';
 import { DEFAULT_CREDIT_CARD_PRESETS, INITIAL_CATEGORIES, INITIAL_CREDIT_CARD_EXPENSES, INITIAL_INCOME_SOURCES, INITIAL_MEMBERS, INITIAL_TRANSACTIONS } from '../data/initialData';
 
 const STORAGE_KEYS = {
@@ -11,6 +11,7 @@ const STORAGE_KEYS = {
   ALARM_SETTINGS: 'heckler_family_alarm_settings_v2',
   USER_ACCOUNTS: 'heckler_family_user_accounts_v2',
   ACTIVE_USER_ID: 'heckler_family_active_user_v2',
+  CHANGE_LOGS: 'heckler_family_change_logs_v2',
   THEME: 'heckler_family_theme_v2',
 };
 
@@ -22,6 +23,7 @@ export const DEFAULT_USER_ACCOUNTS: UserAccount[] = [
     role: 'admin',
     memberId: 'mem_eduardo',
     pin: '1234',
+    email: '926187@pm.sc.gov.br', // E-mail cadastrado para recuperação
     avatarInitials: 'EH',
     color: '#2563EB', // Blue
   },
@@ -32,8 +34,36 @@ export const DEFAULT_USER_ACCOUNTS: UserAccount[] = [
     role: 'user',
     memberId: 'mem_graciela',
     pin: '1234',
+    email: 'graciela.heckler@gmail.com', // E-mail cadastrado para recuperação
     avatarInitials: 'GH',
     color: '#059669', // Emerald
+  },
+];
+
+export const INITIAL_CHANGE_LOGS: ChangeLogEntry[] = [
+  {
+    id: 'log_init_1',
+    timestamp: '08:00:00',
+    fullDate: '2026-11-08',
+    user: 'Eduardo Heckler',
+    entity: 'Sistema',
+    action: 'save',
+    actionLabel: 'Sessão Inicializada',
+    details: 'Banco de dados financeiro familiar carregado e verificado com sucesso.',
+    status: 'saved',
+    savedAt: '08:00:00',
+  },
+  {
+    id: 'log_init_2',
+    timestamp: '08:15:30',
+    fullDate: '2026-11-08',
+    user: 'Eduardo Heckler',
+    entity: 'Fonte de Renda',
+    action: 'update',
+    actionLabel: 'Sincronização de Rendas',
+    details: 'Fontes de renda sincronizadas com lançamentos pagos de Novembro/2026.',
+    status: 'saved',
+    savedAt: '08:15:30',
   },
 ];
 
@@ -58,6 +88,7 @@ export interface AppState {
   alarmSettings: AlarmSettings;
   userAccounts: UserAccount[];
   activeUserId: string | null;
+  changeLogs: ChangeLogEntry[];
 }
 
 export const loadStoredData = (): AppState => {
@@ -71,6 +102,7 @@ export const loadStoredData = (): AppState => {
     const rawAlarm = localStorage.getItem(STORAGE_KEYS.ALARM_SETTINGS);
     const rawAccounts = localStorage.getItem(STORAGE_KEYS.USER_ACCOUNTS);
     const rawActiveUser = localStorage.getItem(STORAGE_KEYS.ACTIVE_USER_ID);
+    const rawLogs = localStorage.getItem(STORAGE_KEYS.CHANGE_LOGS);
 
     const transactions: Transaction[] = rawTx ? JSON.parse(rawTx) : INITIAL_TRANSACTIONS;
     const categories: Category[] = rawCat ? JSON.parse(rawCat) : INITIAL_CATEGORIES;
@@ -79,7 +111,19 @@ export const loadStoredData = (): AppState => {
     const creditCardExpenses: CreditCardExpense[] = rawCC ? JSON.parse(rawCC) : INITIAL_CREDIT_CARD_EXPENSES;
     const creditCardPresets: CreditCardPresetItem[] = rawPresets ? JSON.parse(rawPresets) : DEFAULT_CREDIT_CARD_PRESETS;
     const alarmSettings: AlarmSettings = rawAlarm ? { ...DEFAULT_ALARM_SETTINGS, ...JSON.parse(rawAlarm) } : DEFAULT_ALARM_SETTINGS;
-    const userAccounts: UserAccount[] = rawAccounts ? JSON.parse(rawAccounts) : DEFAULT_USER_ACCOUNTS;
+    
+    // Assegura que todas as contas possuam e-mail configurado para recuperação
+    const parsedAccounts: UserAccount[] = rawAccounts ? JSON.parse(rawAccounts) : DEFAULT_USER_ACCOUNTS;
+    const userAccounts: UserAccount[] = parsedAccounts.map((acc) => {
+      const defaultAcc = DEFAULT_USER_ACCOUNTS.find((d) => d.id === acc.id);
+      return {
+        ...acc,
+        email: acc.email || defaultAcc?.email || (acc.role === 'admin' ? '926187@pm.sc.gov.br' : 'graciela.heckler@gmail.com'),
+      };
+    });
+
+    const changeLogs: ChangeLogEntry[] = rawLogs ? JSON.parse(rawLogs) : INITIAL_CHANGE_LOGS;
+
     const activeUserId: string | null =
       rawActiveUser && rawActiveUser !== '__logged_out__'
         ? rawActiveUser
@@ -87,7 +131,7 @@ export const loadStoredData = (): AppState => {
         ? null
         : 'usr_eduardo';
 
-    return { transactions, categories, members, incomeSources, creditCardExpenses, creditCardPresets, alarmSettings, userAccounts, activeUserId };
+    return { transactions, categories, members, incomeSources, creditCardExpenses, creditCardPresets, alarmSettings, userAccounts, activeUserId, changeLogs };
   } catch (err) {
     console.error('Erro ao ler do localStorage, usando valores padrão:', err);
     return {
@@ -100,6 +144,7 @@ export const loadStoredData = (): AppState => {
       alarmSettings: DEFAULT_ALARM_SETTINGS,
       userAccounts: DEFAULT_USER_ACCOUNTS,
       activeUserId: 'usr_eduardo',
+      changeLogs: INITIAL_CHANGE_LOGS,
     };
   }
 };
@@ -114,6 +159,7 @@ export const persistData = (state: AppState): void => {
     localStorage.setItem(STORAGE_KEYS.CREDIT_CARD_PRESETS, JSON.stringify(state.creditCardPresets || DEFAULT_CREDIT_CARD_PRESETS));
     localStorage.setItem(STORAGE_KEYS.ALARM_SETTINGS, JSON.stringify(state.alarmSettings));
     localStorage.setItem(STORAGE_KEYS.USER_ACCOUNTS, JSON.stringify(state.userAccounts));
+    localStorage.setItem(STORAGE_KEYS.CHANGE_LOGS, JSON.stringify(state.changeLogs || []));
     if (state.activeUserId) {
       localStorage.setItem(STORAGE_KEYS.ACTIVE_USER_ID, state.activeUserId);
     } else {

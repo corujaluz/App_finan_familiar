@@ -11,15 +11,17 @@ import { PaymentConfirmModal } from './components/PaymentConfirmModal';
 import { TransactionModal } from './components/TransactionModal';
 import { ExportImportModal } from './components/ExportImportModal';
 import { LoginModal } from './components/LoginModal';
-import { AppState, DEFAULT_ALARM_SETTINGS, DEFAULT_USER_ACCOUNTS, loadStoredData, persistData, exportCreditCardExpensesAsCSV } from './services/storage';
+import { ChangePinModal } from './components/ChangePinModal';
+import { AuditLogModal } from './components/AuditLogModal';
+import { AppState, DEFAULT_ALARM_SETTINGS, DEFAULT_USER_ACCOUNTS, INITIAL_CHANGE_LOGS, loadStoredData, persistData, exportCreditCardExpensesAsCSV } from './services/storage';
 import { AlarmSettingsModal } from './components/AlarmSettingsModal';
 import { ActiveAlarmBanner } from './components/ActiveAlarmBanner';
 import { CreditCardManager } from './components/CreditCardManager';
 import { playAlarmSound } from './utils/soundAlarm';
-import { AlarmSettings, Category, CreditCardExpense, CreditCardPresetItem, FamilyMember, IncomeSource, PaymentMethod, Transaction, UserAccount } from './types/finance';
+import { AlarmSettings, Category, ChangeLogEntry, CreditCardExpense, CreditCardPresetItem, FamilyMember, IncomeSource, PaymentMethod, Transaction, UserAccount } from './types/finance';
 import { DEFAULT_CREDIT_CARD_PRESETS, INITIAL_CATEGORIES, INITIAL_CREDIT_CARD_EXPENSES, INITIAL_INCOME_SOURCES, INITIAL_MEMBERS, INITIAL_TRANSACTIONS } from './data/initialData';
 import { formatBRL, formatMonthYear } from './utils/formatters';
-import { ArrowDownLeft, ArrowUpRight, CheckCircle2, ShieldAlert, Briefcase, Bell, CreditCard, Lock, LogOut, PieChart, BarChart3, TrendingDown, ArrowRight } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, CheckCircle2, ShieldAlert, Briefcase, Bell, CreditCard, Lock, LogOut, PieChart, BarChart3, TrendingDown, ArrowRight, History } from 'lucide-react';
 
 export default function App() {
   // Theme state
@@ -81,6 +83,9 @@ export default function App() {
   const [isExportImportOpen, setIsExportImportOpen] = useState(false);
   const [isAlarmSettingsOpen, setIsAlarmSettingsOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isChangePinModalOpen, setIsChangePinModalOpen] = useState(false);
+  const [isAuditLogModalOpen, setIsAuditLogModalOpen] = useState(false);
+  const [saveSuccessNotice, setSaveSuccessNotice] = useState<string | null>(null);
   const [isSessionMuted, setIsSessionMuted] = useState(false);
   const [initialStatusFilter, setInitialStatusFilter] = useState<string>('all');
 
@@ -93,14 +98,70 @@ export default function App() {
     return found || null;
   }, [appState.activeUserId, appState.userAccounts]);
 
-  // Function to save data (manual or automatic)
+  // Auditoria em tempo real: registra modificações feitas no aplicativo
+  const addChangeLog = useCallback(
+    (
+      action: 'create' | 'update' | 'delete' | 'payment' | 'pin_change' | 'save',
+      entity: 'Lançamento' | 'Cartão de Crédito' | 'Fonte de Renda' | 'Orçamento' | 'Segurança' | 'Sistema',
+      actionLabel: string,
+      details: string
+    ) => {
+      const now = new Date();
+      const user = currentUser?.name || 'Administrador';
+
+      const newEntry: ChangeLogEntry = {
+        id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        timestamp: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        fullDate: now.toISOString().split('T')[0],
+        user,
+        entity,
+        action,
+        actionLabel,
+        details,
+        status: 'pending',
+      };
+
+      setAppState((prev) => ({
+        ...prev,
+        changeLogs: [newEntry, ...(prev.changeLogs || [])],
+      }));
+      setHasUnsavedChanges(true);
+    },
+    [currentUser]
+  );
+
+  // Contagem de modificações pendentes para salvar
+  const pendingModificationsCount = useMemo(() => {
+    return (appState.changeLogs || []).filter((l) => l.status === 'pending').length;
+  }, [appState.changeLogs]);
+
+  // Função para salvar alterações no aplicativo (manual ou automática a cada 10 min)
   const performSave = useCallback((isManual = false) => {
     setIsSaving(true);
     try {
-      persistData(appStateRef.current);
       const now = new Date();
-      setLastSavedTime(now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+      const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+      // Atualiza o status de todas as modificações pendentes para 'salvo' com a estampa de tempo
+      setAppState((prev) => {
+        const updatedLogs = (prev.changeLogs || []).map((entry) =>
+          entry.status === 'pending'
+            ? { ...entry, status: 'saved' as const, savedAt: timeStr }
+            : entry
+        );
+        const nextState = { ...prev, changeLogs: updatedLogs };
+        persistData(nextState);
+        return nextState;
+      });
+
+      setLastSavedTime(timeStr);
       setHasUnsavedChanges(false);
+
+      // Feedback em tempo real
+      setSaveSuccessNotice(`Modificações salvas com sucesso em tempo real (${timeStr})!`);
+      setTimeout(() => {
+        setSaveSuccessNotice(null);
+      }, 5000);
     } catch (err) {
       console.error('Falha ao salvar dados:', err);
     } finally {
@@ -209,12 +270,19 @@ export default function App() {
   };
 
   const handleUpdatePin = (userId: string, newPin: string) => {
+    const targetUser = (appState.userAccounts || DEFAULT_USER_ACCOUNTS).find((u) => u.id === userId);
     setAppState((prev) => ({
       ...prev,
       userAccounts: (prev.userAccounts || DEFAULT_USER_ACCOUNTS).map((u) =>
         u.id === userId ? { ...u, pin: newPin } : u
       ),
     }));
+    addChangeLog(
+      'pin_change',
+      'Segurança',
+      'Alteração de PIN',
+      `PIN de acesso de ${targetUser ? targetUser.name : 'usuário'} redefinido com sucesso.`
+    );
     setHasUnsavedChanges(true);
   };
 
@@ -404,13 +472,21 @@ export default function App() {
       }
       return { ...prev, transactions: updatedList };
     });
+
+    if (editId) {
+      addChangeLog('update', 'Lançamento', 'Edição de Lançamento', `Lançamento "${data.title}" alterado (${formatBRL(data.amount)}).`);
+    } else {
+      addChangeLog('create', 'Lançamento', 'Novo Lançamento', `Novo lançamento "${data.title}" cadastrado (${formatBRL(data.amount)}).`);
+    }
   };
 
   const handleDeleteTransaction = (id: string) => {
+    const target = appState.transactions.find((t) => t.id === id);
     setAppState((prev) => ({
       ...prev,
       transactions: prev.transactions.filter((t) => t.id !== id),
     }));
+    addChangeLog('delete', 'Lançamento', 'Exclusão de Lançamento', `Lançamento "${target?.title || 'Item'}" foi excluído.`);
   };
 
   const handleDuplicateTransaction = (tx: Transaction) => {
@@ -427,6 +503,7 @@ export default function App() {
       ...prev,
       transactions: [duplicated, ...prev.transactions],
     }));
+    addChangeLog('create', 'Lançamento', 'Duplicação', `Lançamento "${tx.title}" duplicado.`);
   };
 
   // Payment confirmation handler
@@ -437,6 +514,7 @@ export default function App() {
     receiptNote: string,
     paidAmount: number
   ) => {
+    const target = appState.transactions.find((t) => t.id === txId);
     setAppState((prev) => ({
       ...prev,
       transactions: prev.transactions.map((tx) => {
@@ -453,10 +531,17 @@ export default function App() {
         return tx;
       }),
     }));
+    addChangeLog(
+      'payment',
+      'Lançamento',
+      'Confirmação de Pagamento',
+      `Pagamento de "${target?.title || 'Lançamento'}" confirmado (${formatBRL(paidAmount)}) via ${paymentMethod}.`
+    );
   };
 
   // Revert payment confirmation (back to pending)
   const handleRevertPayment = (txId: string) => {
+    const target = appState.transactions.find((t) => t.id === txId);
     setAppState((prev) => ({
       ...prev,
       transactions: prev.transactions.map((tx) => {
@@ -470,6 +555,12 @@ export default function App() {
         return tx;
       }),
     }));
+    addChangeLog(
+      'update',
+      'Lançamento',
+      'Estorno de Pagamento',
+      `Pagamento de "${target?.title || 'Lançamento'}" revertido para pendente.`
+    );
   };
 
   // Category Budget update
@@ -544,6 +635,12 @@ export default function App() {
       incomeSources: [...prev.incomeSources, newSource],
       transactions: [newTx, ...prev.transactions],
     }));
+    addChangeLog(
+      'create',
+      'Fonte de Renda',
+      'Nova Fonte de Renda',
+      `Fonte de renda "${newSource.name}" cadastrada (${formatBRL(newSource.estimatedMonthlyAmount)}).`
+    );
   };
 
   const handleEditIncomeSource = (updatedSource: IncomeSource) => {
@@ -571,13 +668,26 @@ export default function App() {
         transactions: updatedTransactions,
       };
     });
+    addChangeLog(
+      'update',
+      'Fonte de Renda',
+      'Edição de Renda',
+      `Fonte de renda "${updatedSource.name}" atualizada (${formatBRL(updatedSource.estimatedMonthlyAmount)}).`
+    );
   };
 
   const handleDeleteIncomeSource = (id: string) => {
+    const target = appState.incomeSources.find((s) => s.id === id);
     setAppState((prev) => ({
       ...prev,
       incomeSources: prev.incomeSources.filter((s) => s.id !== id),
     }));
+    addChangeLog(
+      'delete',
+      'Fonte de Renda',
+      'Exclusão de Renda',
+      `Fonte de renda "${target?.name || 'Item'}" removida.`
+    );
   };
 
   const handleConfirmIncomePaid = (txId: string) => {
@@ -663,6 +773,12 @@ export default function App() {
         creditCardExpenses: [...newExpenses, ...(prev.creditCardExpenses || [])],
       };
     });
+    addChangeLog(
+      'create',
+      'Cartão de Crédito',
+      'Novo Gasto no Cartão',
+      `Novo gasto no cartão "${data.description}" (${formatBRL(data.amount)}).`
+    );
   };
 
   const handleEditCreditCardExpense = (updated: CreditCardExpense) => {
@@ -672,13 +788,26 @@ export default function App() {
         c.id === updated.id ? updated : c
       ),
     }));
+    addChangeLog(
+      'update',
+      'Cartão de Crédito',
+      'Edição de Gasto no Cartão',
+      `Gasto no cartão "${updated.description}" editado (${formatBRL(updated.amount)}).`
+    );
   };
 
   const handleDeleteCreditCardExpense = (id: string) => {
+    const target = (appState.creditCardExpenses || []).find((c) => c.id === id);
     setAppState((prev) => ({
       ...prev,
       creditCardExpenses: (prev.creditCardExpenses || []).filter((c) => c.id !== id),
     }));
+    addChangeLog(
+      'delete',
+      'Cartão de Crédito',
+      'Exclusão de Gasto',
+      `Gasto no cartão "${target?.description || 'Item'}" excluído.`
+    );
   };
 
   const handleDuplicateCreditCardExpense = (expense: CreditCardExpense) => {
@@ -692,6 +821,7 @@ export default function App() {
       ...prev,
       creditCardExpenses: [duplicated, ...(prev.creditCardExpenses || [])],
     }));
+    addChangeLog('create', 'Cartão de Crédito', 'Duplicação no Cartão', `Gasto no cartão "${expense.description}" duplicado.`);
   };
 
   const handleUpdateCreditCardPresets = (presets: CreditCardPresetItem[]) => {
@@ -699,6 +829,12 @@ export default function App() {
       ...prev,
       creditCardPresets: presets,
     }));
+    addChangeLog(
+      'update',
+      'Cartão de Crédito',
+      'Itens Pré-definidos',
+      `Lista de itens pré-definidos do formulário de cartão atualizada (${presets.length} itens).`
+    );
     setHasUnsavedChanges(true);
   };
 
@@ -767,6 +903,7 @@ export default function App() {
       alarmSettings: DEFAULT_ALARM_SETTINGS,
       userAccounts: DEFAULT_USER_ACCOUNTS,
       activeUserId: 'usr_eduardo',
+      changeLogs: INITIAL_CHANGE_LOGS,
     };
     setAppState(demoState);
   };
@@ -839,6 +976,9 @@ export default function App() {
         isSaving={isSaving}
         hasUnsavedChanges={hasUnsavedChanges}
         lastSavedTime={lastSavedTime}
+        onOpenChangePin={() => setIsChangePinModalOpen(true)}
+        onOpenAuditLog={() => setIsAuditLogModalOpen(true)}
+        pendingModificationsCount={pendingModificationsCount}
       />
 
       {/* Main Container */}
@@ -1301,6 +1441,7 @@ export default function App() {
         onImportData={handleImportData}
         onResetToDemo={handleResetToDemo}
         currentUser={currentUser}
+        currentMonthKey={currentMonthKey}
       />
 
       {/* 4. Alarm Settings Modal (Configurações e Período do Alarme Sonoro) */}
@@ -1324,6 +1465,44 @@ export default function App() {
         onUpdatePin={handleUpdatePin}
         inactivityNotice={inactivityNotice}
       />
+
+      {/* 6. Change PIN Modal (Exclusivo após autenticação bem-sucedida) */}
+      <ChangePinModal
+        isOpen={isChangePinModalOpen}
+        onClose={() => setIsChangePinModalOpen(false)}
+        currentUser={currentUser}
+        onUpdatePin={handleUpdatePin}
+      />
+
+      {/* 7. Real-Time Audit & Data Modifications Modal */}
+      <AuditLogModal
+        isOpen={isAuditLogModalOpen}
+        onClose={() => setIsAuditLogModalOpen(false)}
+        changeLogs={appState.changeLogs || []}
+        lastSavedTime={lastSavedTime}
+        hasUnsavedChanges={hasUnsavedChanges}
+        onSaveNow={() => performSave(true)}
+        isSaving={isSaving}
+      />
+
+      {/* Toast de Confirmação de Salvamento em Tempo Real */}
+      {saveSuccessNotice && (
+        <div className="fixed bottom-5 right-5 z-40 max-w-sm bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-emerald-500/40 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom duration-300">
+          <div className="flex items-center gap-2 text-xs">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="line-clamp-2">{saveSuccessNotice}</span>
+          </div>
+          <button
+            onClick={() => {
+              setSaveSuccessNotice(null);
+              setIsAuditLogModalOpen(true);
+            }}
+            className="text-xs font-bold text-emerald-400 hover:text-emerald-300 underline shrink-0 whitespace-nowrap ml-1"
+          >
+            Ver
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Sun, Moon, Download, Upload, Wallet, Bell, Shield, User, LogIn, LogOut, Save, Check, RefreshCw } from 'lucide-react';
+import { Plus, Sun, Moon, Download, Upload, Wallet, Bell, Shield, User, LogIn, LogOut, Save, Check, RefreshCw, KeyRound, History } from 'lucide-react';
 import { UserAccount } from '../types/finance';
 
 interface HeaderProps {
@@ -19,6 +19,9 @@ interface HeaderProps {
   isSaving?: boolean;
   hasUnsavedChanges?: boolean;
   lastSavedTime?: string | null;
+  onOpenChangePin?: () => void;
+  onOpenAuditLog?: () => void;
+  pendingModificationsCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -37,6 +40,9 @@ export const Header: React.FC<HeaderProps> = ({
   isSaving = false,
   hasUnsavedChanges = false,
   lastSavedTime = null,
+  onOpenChangePin,
+  onOpenAuditLog,
+  pendingModificationsCount = 0,
 }) => {
   return (
     <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
@@ -152,12 +158,32 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={onOpenExportImport}
-              title="Backup e Exportação de Dados"
+              title="Backup, Relatórios em PDF/Excel e Exportação"
               aria-label="Backup e Exportação"
               className="p-2 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               <Download className="w-4 h-4" />
             </button>
+
+            {/* Audit Log / Real-time Modifications Tracker */}
+            {onOpenAuditLog && (
+              <button
+                onClick={onOpenAuditLog}
+                title="Visualizar modificações e auditoria em tempo real"
+                aria-label="Histórico de Modificações"
+                className="relative p-2 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-medium"
+              >
+                <History className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="hidden xl:inline">Modificações</span>
+                {pendingModificationsCount > 0 ? (
+                  <span className="min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-[10px] font-bold text-white flex items-center justify-center tabular-nums">
+                    {pendingModificationsCount}
+                  </span>
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" title="Ao vivo / Sincronizado" />
+                )}
+              </button>
+            )}
 
             <button
               onClick={onToggleDarkMode}
@@ -168,11 +194,24 @@ export const Header: React.FC<HeaderProps> = ({
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
+            {/* Change PIN (Only Accessible After User Login) */}
+            {currentUser && onOpenChangePin && (
+              <button
+                onClick={onOpenChangePin}
+                title={`Alterar PIN de segurança de ${currentUser.name}`}
+                aria-label="Alterar PIN"
+                className="p-2 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium"
+              >
+                <KeyRound className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span className="hidden xl:inline">Alterar PIN</span>
+              </button>
+            )}
+
             {/* User Account / Profile Switcher Button */}
             {currentUser ? (
               <button
                 onClick={onOpenLogin}
-                title={`Logado como ${currentUser.name} (${currentUser.role === 'admin' ? 'Administrador' : 'Usuário'}). Clique para alternar ou sair.`}
+                title={`Logado como ${currentUser.name} (${currentUser.role === 'admin' ? 'Administrador' : 'Usuário'}). Clique para alternar perfil.`}
                 className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-800/80 transition-colors text-left"
               >
                 <div

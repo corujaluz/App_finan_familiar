@@ -234,6 +234,57 @@ export default function App() {
     return appState.transactions.filter((tx) => tx.dueDate.startsWith(currentMonthKey));
   }, [appState.transactions, currentMonthKey]);
 
+  // Entradas pagas do mês (somatório dos lançamentos de renda com status 'paid')
+  const monthPaidIncome = useMemo(() => {
+    return monthTransactions
+      .filter((t) => t.type === 'income' && t.status === 'paid')
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [monthTransactions]);
+
+  // Sincroniza e garante que todas as fontes de renda ativas possuam lançamentos correspondentes no mês
+  useEffect(() => {
+    setAppState((prev) => {
+      let hasChanges = false;
+      const newTransactions = [...prev.transactions];
+
+      prev.incomeSources.filter((s) => s.isActive).forEach((source) => {
+        const existingTx = newTransactions.find(
+          (tx) => tx.type === 'income' && tx.dueDate.startsWith(currentMonthKey) && (tx.sourceId === source.id || tx.title.toLowerCase() === source.name.toLowerCase())
+        );
+
+        const dayStr = source.expectedDayOfMonth ? String(source.expectedDayOfMonth).padStart(2, '0') : '05';
+        const expectedDueDate = `${currentMonthKey}-${dayStr}`;
+
+        if (!existingTx) {
+          hasChanges = true;
+          newTransactions.unshift({
+            id: `tx_inc_${source.id}_${currentMonthKey}`,
+            type: 'income',
+            title: source.name,
+            amount: source.estimatedMonthlyAmount || 0,
+            categoryId: source.categoryId,
+            memberId: source.memberId,
+            sourceId: source.id,
+            sourceName: source.name,
+            dueDate: expectedDueDate,
+            paymentDate: expectedDueDate,
+            status: 'paid', // Lançamento pago para constar no saldo do mês
+            paymentMethod: 'pix',
+            receiptNote: 'Recebimento de entrada cadastrada',
+            isRecurring: true,
+            createdAt: `${currentMonthKey}-01`,
+          });
+        }
+      });
+
+      if (!hasChanges) return prev;
+      return {
+        ...prev,
+        transactions: newTransactions,
+      };
+    });
+  }, [currentMonthKey, appState.incomeSources]);
+
   // Top categories preview for quick analytics sidebar
   const topCategoriesPreview = useMemo(() => {
     const expenses = monthTransactions.filter((tx) => tx.type === 'expense');
@@ -461,29 +512,87 @@ export default function App() {
 
   // Income Sources handlers
   const handleAddIncomeSource = (sourceData: Omit<IncomeSource, 'id'>) => {
+    const newSourceId = `src_${Date.now()}`;
     const newSource: IncomeSource = {
       ...sourceData,
-      id: `src_${Date.now()}`,
+      id: newSourceId,
     };
+    const dayStr = newSource.expectedDayOfMonth ? String(newSource.expectedDayOfMonth).padStart(2, '0') : '05';
+    const dueDate = `${currentMonthKey}-${dayStr}`;
+
+    // Cria imediatamente o lançamento de entrada pago correspondente para constar na Visão Geral e Saldo
+    const newTx: Transaction = {
+      id: `tx_inc_${newSourceId}_${currentMonthKey}`,
+      type: 'income',
+      title: newSource.name,
+      amount: newSource.estimatedMonthlyAmount || 0,
+      categoryId: newSource.categoryId,
+      memberId: newSource.memberId,
+      sourceId: newSourceId,
+      sourceName: newSource.name,
+      dueDate: dueDate,
+      paymentDate: dueDate,
+      status: 'paid', // Lançamento pago para constar no saldo do mês
+      paymentMethod: 'pix',
+      receiptNote: 'Recebimento de entrada cadastrada',
+      isRecurring: true,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+
     setAppState((prev) => ({
       ...prev,
       incomeSources: [...prev.incomeSources, newSource],
+      transactions: [newTx, ...prev.transactions],
     }));
   };
 
   const handleEditIncomeSource = (updatedSource: IncomeSource) => {
-    setAppState((prev) => ({
-      ...prev,
-      incomeSources: prev.incomeSources.map((s) =>
-        s.id === updatedSource.id ? updatedSource : s
-      ),
-    }));
+    setAppState((prev) => {
+      // Atualiza também o lançamento correspondente no mês
+      const updatedTransactions = prev.transactions.map((tx) => {
+        if (tx.type === 'income' && tx.sourceId === updatedSource.id && tx.dueDate.startsWith(currentMonthKey)) {
+          return {
+            ...tx,
+            title: updatedSource.name,
+            sourceName: updatedSource.name,
+            amount: updatedSource.estimatedMonthlyAmount,
+            categoryId: updatedSource.categoryId,
+            memberId: updatedSource.memberId,
+          };
+        }
+        return tx;
+      });
+
+      return {
+        ...prev,
+        incomeSources: prev.incomeSources.map((s) =>
+          s.id === updatedSource.id ? updatedSource : s
+        ),
+        transactions: updatedTransactions,
+      };
+    });
   };
 
   const handleDeleteIncomeSource = (id: string) => {
     setAppState((prev) => ({
       ...prev,
       incomeSources: prev.incomeSources.filter((s) => s.id !== id),
+    }));
+  };
+
+  const handleConfirmIncomePaid = (txId: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    setAppState((prev) => ({
+      ...prev,
+      transactions: prev.transactions.map((tx) =>
+        tx.id === txId
+          ? {
+              ...tx,
+              status: 'paid',
+              paymentDate: tx.paymentDate || today,
+            }
+          : tx
+      ),
     }));
   };
 
@@ -499,7 +608,8 @@ export default function App() {
       sourceId: source.id,
       sourceName: source.name,
       dueDate: `${currentMonthKey}-${dayStr}`,
-      status: 'pending',
+      status: 'paid',
+      paymentDate: `${currentMonthKey}-${dayStr}`,
       paymentMethod: 'pix',
       isRecurring: true,
       createdAt: new Date().toISOString().split('T')[0],
@@ -748,6 +858,7 @@ export default function App() {
             <SummaryCards
               transactions={monthTransactions}
               creditCardExpenses={appState.creditCardExpenses}
+              incomeSources={appState.incomeSources}
               currentMonthKey={currentMonthKey}
               onFilterByStatus={handleJumpToStatusFilter}
             />
@@ -834,36 +945,57 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                       <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                        Fontes de Renda
+                        Fontes de Renda (Entradas)
                       </h3>
                     </div>
                     <button
                       onClick={() => setCurrentTab('income_sources')}
                       className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
                     >
-                      Editar Fontes &rarr;
+                      Gerenciar &rarr;
                     </button>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-                    {appState.incomeSources.filter((s) => s.isActive).length} fontes ativas configuradas
-                  </p>
+                  <div className="flex items-baseline justify-between mb-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Entradas Pagas no Mês:
+                    </p>
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                      {formatBRL(monthPaidIncome)}
+                    </span>
+                  </div>
                   <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
-                    {appState.incomeSources.slice(0, 3).map((source) => (
-                      <div key={source.id} className="flex justify-between items-center text-xs">
-                        <span className="text-slate-700 dark:text-slate-300 truncate max-w-[170px]" title={source.name}>
-                          {source.name}
-                        </span>
-                        <strong className="text-emerald-600 dark:text-emerald-400 tabular-nums">
-                          {formatBRL(source.estimatedMonthlyAmount)}
-                        </strong>
-                      </div>
-                    ))}
-                    {appState.incomeSources.length > 3 && (
+                    {appState.incomeSources.filter((s) => s.isActive).slice(0, 3).map((source) => {
+                      const sourceTx = monthTransactions.find(
+                        (t) => t.type === 'income' && (t.sourceId === source.id || t.title.toLowerCase() === source.name.toLowerCase())
+                      );
+                      const isPaid = sourceTx ? sourceTx.status === 'paid' : false;
+                      const amount = sourceTx ? sourceTx.amount : source.estimatedMonthlyAmount;
+
+                      return (
+                        <div key={source.id} className="flex justify-between items-center text-xs">
+                          <div className="flex items-center gap-1.5 truncate max-w-[170px]">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isPaid ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                            <span className="text-slate-700 dark:text-slate-300 truncate" title={source.name}>
+                              {source.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
+                              {isPaid ? 'Pago' : 'Pendente'}
+                            </span>
+                            <strong className="text-emerald-600 dark:text-emerald-400 tabular-nums">
+                              {formatBRL(amount)}
+                            </strong>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {appState.incomeSources.filter((s) => s.isActive).length > 3 && (
                       <button
                         onClick={() => setCurrentTab('income_sources')}
                         className="text-[11px] text-slate-500 hover:text-emerald-600 dark:text-slate-400 block pt-1"
                       >
-                        + Ver mais {appState.incomeSources.length - 3} fontes de renda
+                        + Ver todas as {appState.incomeSources.filter((s) => s.isActive).length} fontes de renda
                       </button>
                     )}
                   </div>
@@ -1052,6 +1184,7 @@ export default function App() {
               onEditIncomeSource={handleEditIncomeSource}
               onDeleteIncomeSource={handleDeleteIncomeSource}
               onQuickIncomeForSource={handleQuickIncomeForSource}
+              onConfirmIncomePaid={handleConfirmIncomePaid}
             />
           </div>
         )}

@@ -586,10 +586,10 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full min-w-0">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full min-w-0">
           {/* Opção 1: Gastos Detalhados */}
           <label
-            className={`flex items-start sm:items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer min-w-0 ${
+            className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer w-full min-w-0 ${
               includeDetailedCardExpenses
                 ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/80 ring-1 ring-indigo-500/20'
                 : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -599,15 +599,15 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
               type="checkbox"
               checked={includeDetailedCardExpenses}
               onChange={(e) => setIncludeDetailedCardExpenses(e.target.checked)}
-              className="mt-0.5 sm:mt-0 rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 shrink-0"
+              className="mt-1 rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 shrink-0"
             />
             <div className="min-w-0 flex-1 text-xs">
-              <span className="font-semibold text-slate-900 dark:text-white block leading-tight">
+              <span className="font-semibold text-slate-900 dark:text-white block leading-snug break-words">
                 Incluir Gastos Detalhados do Cartão
               </span>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 <span className="text-[11px] text-slate-500 dark:text-slate-400">Total detalhado:</span>
-                <span className="font-bold text-indigo-600 dark:text-indigo-400 tabular-nums">
+                <span className="font-bold text-indigo-600 dark:text-indigo-400 tabular-nums whitespace-nowrap">
                   {formatBRL(creditCardTotalThisMonth)}
                 </span>
               </div>
@@ -616,7 +616,7 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
 
           {/* Opção 2: Item Cartão dos Lançamentos */}
           <label
-            className={`flex items-start sm:items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer min-w-0 ${
+            className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer w-full min-w-0 ${
               includeInvoiceTransactionInCharts
                 ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/80 ring-1 ring-indigo-500/20'
                 : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -627,15 +627,15 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
               type="checkbox"
               checked={includeInvoiceTransactionInCharts}
               onChange={(e) => setIncludeInvoiceTransactionInCharts(e.target.checked)}
-              className="mt-0.5 sm:mt-0 rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 shrink-0"
+              className="mt-1 rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 shrink-0"
             />
             <div className="min-w-0 flex-1 text-xs">
-              <span className="font-semibold text-slate-900 dark:text-white block leading-tight">
+              <span className="font-semibold text-slate-900 dark:text-white block leading-snug break-words">
                 Marcar item "Cartão de Crédito" dos Lançamentos
               </span>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 <span className="text-[11px] text-slate-500 dark:text-slate-400">Fatura lançada:</span>
-                <span className="font-bold text-slate-900 dark:text-white tabular-nums">
+                <span className="font-bold text-slate-900 dark:text-white tabular-nums whitespace-nowrap">
                   {cardInvoiceAmount > 0 ? formatBRL(cardInvoiceAmount) : 'R$ 0,00'}
                 </span>
               </div>
@@ -646,9 +646,9 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
 
       {/* Tab 1: Despesas por Categoria */}
       {activeTab === 'categories' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start w-full min-w-0">
           {/* Donut Chart Visualizer */}
-          <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xs flex flex-col items-center justify-start space-y-5 min-w-0">
+          <div className="xl:col-span-5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xs flex flex-col items-center justify-start space-y-5 min-w-0 overflow-hidden">
             <div className="w-full text-left">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                 Composição das Saídas
@@ -699,7 +699,7 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
           </div>
 
           {/* Category List & Progress Bars */}
-          <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xs min-w-0 space-y-4">
+          <div className="xl:col-span-7 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xs min-w-0 space-y-4 overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-1">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
@@ -746,14 +746,14 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
                       }`}
                     >
                       {/* Top Row: Category Name + Budget Badge + Amount + Percentage */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs mb-2 min-w-0">
-                        <div className="flex items-center gap-2 min-w-0 flex-wrap flex-1">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 text-xs mb-2 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
                           <span
                             className="w-2.5 h-2.5 rounded-full shrink-0"
                             style={{ backgroundColor: item.color }}
                           />
                           <span
-                            className="font-semibold text-slate-900 dark:text-white truncate max-w-[200px] sm:max-w-[280px]"
+                            className="font-semibold text-slate-900 dark:text-white break-words"
                             title={item.name}
                           >
                             {item.name}
@@ -771,7 +771,7 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
                           )}
                         </div>
 
-                        <div className="flex items-center justify-between sm:justify-end gap-2.5 tabular-nums shrink-0 ml-auto sm:ml-0">
+                        <div className="flex items-baseline justify-end gap-2.5 tabular-nums shrink-0 self-end sm:self-auto">
                           <span className="font-bold text-slate-900 dark:text-white whitespace-nowrap">
                             {formatBRL(item.amount)}
                           </span>
@@ -1470,9 +1470,7 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
                 Nenhuma fonte de renda cadastrada.
               </p>
             ) : (
-              incomeSourcesBreakdown.map((item) => {
-                const percentOfEstimated = item.estimated > 0 ? (item.total / item.estimated) * 100 : 0;
-                return (
+              incomeSourcesBreakdown.map((item) => (
                   <div
                     key={item.id}
                     className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-xl space-y-2.5"
@@ -1517,28 +1515,18 @@ export const ChartsAnalytics: React.FC<ChartsAnalyticsProps> = ({
                       </div>
                     </div>
 
-                    {/* Progress bar comparing vs estimated */}
-                    <div className="space-y-1 pt-1">
-                      <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-600 rounded-full transition-all duration-300"
-                          style={{ width: `${Math.min(100, Math.max(0, percentOfEstimated))}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400">
-                        <span>
-                          {percentOfEstimated >= 100
-                            ? 'Meta de receita mensal atingida!'
-                            : `${percentOfEstimated.toFixed(0)}% da previsão mensal atingida`}
-                        </span>
-                        <span className="tabular-nums">
-                          Previsão cadastrada: {formatBRL(item.estimated)}
-                        </span>
-                      </div>
+                    {/* Informações da Entrada e Lançamentos Pagos */}
+                    <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Entrada Efetivada em Lançamentos Pagos</span>
+                      </span>
+                      <span className="tabular-nums font-semibold text-slate-700 dark:text-slate-300">
+                        Valor de Entrada: {formatBRL(item.received > 0 ? item.received : item.total)}
+                      </span>
                     </div>
                   </div>
-                );
-              })
+                ))
             )}
           </div>
         </div>

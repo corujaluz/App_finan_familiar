@@ -1,11 +1,12 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, DollarSign, CheckCircle2, AlertCircle } from 'lucide-react';
 import { formatBRL } from '../utils/formatters';
-import { Category, CreditCardExpense, Transaction } from '../types/finance';
+import { Category, CreditCardExpense, IncomeSource, Transaction } from '../types/finance';
 
 interface SummaryCardsProps {
   transactions: Transaction[];
   creditCardExpenses?: CreditCardExpense[];
+  incomeSources?: IncomeSource[];
   currentMonthKey?: string;
   onFilterByStatus?: (status: string) => void;
 }
@@ -13,18 +14,25 @@ interface SummaryCardsProps {
 export const SummaryCards: React.FC<SummaryCardsProps> = ({
   transactions,
   creditCardExpenses = [],
+  incomeSources = [],
   currentMonthKey,
   onFilterByStatus,
 }) => {
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // Incomes
+  // Incomes (Rendas e Entradas relacionadas aos lançamentos pagos)
   const incomeTx = transactions.filter((t) => t.type === 'income');
+  const paidIncomeTx = incomeTx.filter((t) => t.status === 'paid');
+  const receivedIncome = paidIncomeTx.reduce((acc, t) => acc + t.amount, 0);
   const totalIncome = incomeTx.reduce((acc, t) => acc + t.amount, 0);
-  const receivedIncome = incomeTx
-    .filter((t) => t.status === 'paid')
-    .reduce((acc, t) => acc + t.amount, 0);
   const pendingIncome = totalIncome - receivedIncome;
+
+  // Valor de entrada das fontes de renda ativas como garantia
+  const activeSources = (incomeSources || []).filter((s) => s.isActive);
+  const activeSourcesTotal = activeSources.reduce((sum, s) => sum + s.estimatedMonthlyAmount, 0);
+
+  // Valor de entrada a considerar no saldo: prioriza os lançamentos pagos/recebidos
+  const displayIncome = receivedIncome > 0 ? receivedIncome : totalIncome > 0 ? totalIncome : activeSourcesTotal;
 
   // Expenses:
   // Item "cartão de crédito" em lançamentos não computa no total para não duplicar com os gastos individuais do cartão!
@@ -64,9 +72,10 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
   );
   const overdueTotal = overdueExpenses.reduce((acc, t) => acc + t.amount, 0);
 
-  // Balance & Savings Rate
-  const balance = totalIncome - totalExpense;
-  const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome) * 100 : 0;
+  // Balance & Savings Rate (computando as fontes de renda e lançamentos pagos)
+  const balance = displayIncome - totalExpense;
+  const realizedBalance = receivedIncome - paidExpense;
+  const savingsRate = displayIncome > 0 ? ((displayIncome - totalExpense) / displayIncome) * 100 : 0;
 
   // Payment confirmation progress percentage
   const totalExpenseBills = regularExpenseTx.length + (creditCardTotal > 0 ? 1 : 0);
@@ -86,12 +95,16 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
           </div>
         </div>
         <div className="mt-3">
-          <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white tabular-nums">
-            {formatBRL(totalIncome)}
+          <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
+            {formatBRL(displayIncome)}
           </div>
           <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 flex justify-between">
-            <span>Recebido: <strong className="text-emerald-600 dark:text-emerald-400 tabular-nums">{formatBRL(receivedIncome)}</strong></span>
-            <span>A receber: <span className="tabular-nums">{formatBRL(pendingIncome)}</span></span>
+            <span>Recebido (Pagos): <strong className="text-emerald-600 dark:text-emerald-400 tabular-nums">{formatBRL(receivedIncome)}</strong></span>
+            {pendingIncome > 0 ? (
+              <span>A receber: <span className="tabular-nums font-semibold text-amber-600 dark:text-amber-400">{formatBRL(pendingIncome)}</span></span>
+            ) : (
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">100% recebido</span>
+            )}
           </div>
         </div>
       </div>
@@ -145,18 +158,16 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
             {balance >= 0 ? `+${formatBRL(balance)}` : formatBRL(balance)}
           </div>
           <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 flex justify-between">
-            <span>Taxa de Poupança:</span>
-            <span
+            <span>Saldo Realizado (Pagos):</span>
+            <strong
               className={`font-semibold tabular-nums ${
-                savingsRate >= 15
+                realizedBalance >= 0
                   ? 'text-emerald-600 dark:text-emerald-400'
-                  : savingsRate >= 0
-                  ? 'text-amber-600 dark:text-amber-400'
                   : 'text-rose-600 dark:text-rose-400'
               }`}
             >
-              {savingsRate.toFixed(1)}%
-            </span>
+              {realizedBalance >= 0 ? `+${formatBRL(realizedBalance)}` : formatBRL(realizedBalance)}
+            </strong>
           </div>
         </div>
       </div>

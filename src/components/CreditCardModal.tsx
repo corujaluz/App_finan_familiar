@@ -1,6 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, Calendar, Tag, User, Layers, FileText } from 'lucide-react';
-import { Category, CreditCardExpense, FamilyMember } from '../types/finance';
+import {
+  X,
+  CreditCard,
+  Calendar,
+  Tag,
+  User,
+  Layers,
+  FileText,
+  Sparkles,
+  SlidersHorizontal,
+  Plus,
+  Edit2,
+  Trash2,
+  Check,
+  RotateCcw,
+} from 'lucide-react';
+import { Category, CreditCardExpense, CreditCardPresetItem, FamilyMember } from '../types/finance';
+import { DEFAULT_CREDIT_CARD_PRESETS } from '../data/initialData';
 
 interface CreditCardModalProps {
   isOpen: boolean;
@@ -15,6 +31,8 @@ interface CreditCardModalProps {
   members: FamilyMember[];
   defaultMonthKey: string;
   knownCardNames?: string[];
+  presetItems?: CreditCardPresetItem[];
+  onUpdatePresetItems?: (presets: CreditCardPresetItem[]) => void;
 }
 
 const DEFAULT_CARD_OPTIONS = [
@@ -26,28 +44,6 @@ const DEFAULT_CARD_OPTIONS = [
   'Inter Mastercard Black',
 ];
 
-interface QuickPreset {
-  name: string;
-  categoryNamePartial?: string;
-  memberNamePartial?: string;
-}
-
-const PRESET_EXPENSE_TERMS: QuickPreset[] = [
-  { name: 'Combustível', categoryNamePartial: 'transporte' },
-  { name: 'Farmácia', categoryNamePartial: 'saúde' },
-  { name: 'Mercado', categoryNamePartial: 'alimentação' },
-  { name: 'Casa', categoryNamePartial: 'moradia' },
-  { name: 'Graciela', memberNamePartial: 'graciela', categoryNamePartial: 'pessoal' },
-  { name: 'Eduardo', memberNamePartial: 'eduardo', categoryNamePartial: 'pessoal' },
-  { name: 'Haniela', memberNamePartial: 'haniela', categoryNamePartial: 'educação' },
-  { name: 'Material escolar', categoryNamePartial: 'educação' },
-  { name: 'Restaurante', categoryNamePartial: 'alimentação' },
-  { name: 'Padaria', categoryNamePartial: 'alimentação' },
-  { name: 'Outros', categoryNamePartial: 'outros' },
-  { name: 'Roupas', categoryNamePartial: 'vestuário' },
-  { name: 'Calçados', categoryNamePartial: 'vestuário' },
-];
-
 export const CreditCardModal: React.FC<CreditCardModalProps> = ({
   isOpen,
   onClose,
@@ -57,6 +53,8 @@ export const CreditCardModal: React.FC<CreditCardModalProps> = ({
   members,
   defaultMonthKey,
   knownCardNames = [],
+  presetItems,
+  onUpdatePresetItems,
 }) => {
   if (!isOpen) return null;
 
@@ -84,6 +82,24 @@ export const CreditCardModal: React.FC<CreditCardModalProps> = ({
   );
   const [autoGenerateInstallments, setAutoGenerateInstallments] = useState(false);
   const [notes, setNotes] = useState(expenseToEdit?.notes || '');
+
+  // Presets State (itens a serem preenchidos)
+  const [localPresets, setLocalPresets] = useState<CreditCardPresetItem[]>(
+    presetItems && presetItems.length > 0 ? presetItems : DEFAULT_CREDIT_CARD_PRESETS
+  );
+  const [isEditingPresets, setIsEditingPresets] = useState(false);
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  const [presetItemName, setPresetItemName] = useState('');
+  const [presetItemCategoryId, setPresetItemCategoryId] = useState('');
+  const [presetItemMemberId, setPresetItemMemberId] = useState('');
+  const [presetFeedbackMsg, setPresetFeedbackMsg] = useState('');
+
+  // Keep localPresets in sync if presetItems prop updates
+  useEffect(() => {
+    if (presetItems && presetItems.length > 0) {
+      setLocalPresets(presetItems);
+    }
+  }, [presetItems]);
 
   // Merge default and known card options
   const allCardOptions = Array.from(new Set([...DEFAULT_CARD_OPTIONS, ...knownCardNames]));
@@ -131,9 +147,97 @@ export const CreditCardModal: React.FC<CreditCardModalProps> = ({
 
   const expenseCategories = categories.filter((c) => c.type === 'expense' || c.type === 'both');
 
-  const handleSelectPreset = (preset: QuickPreset) => {
+  // Salvar novo item ou atualizar existente
+  const handleSavePresetItem = () => {
+    const trimmed = presetItemName.trim();
+    if (!trimmed) {
+      setPresetFeedbackMsg('Informe o nome do item para salvar.');
+      return;
+    }
+
+    let updated: CreditCardPresetItem[];
+    if (editingPresetId) {
+      // Editando item existente
+      updated = localPresets.map((p) =>
+        p.id === editingPresetId
+          ? {
+              ...p,
+              name: trimmed,
+              categoryId: presetItemCategoryId || undefined,
+              memberId: presetItemMemberId || undefined,
+            }
+          : p
+      );
+      setPresetFeedbackMsg(`Item "${trimmed}" atualizado com sucesso!`);
+    } else {
+      // Criando novo item
+      const newItem: CreditCardPresetItem = {
+        id: `preset_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: trimmed,
+        categoryId: presetItemCategoryId || undefined,
+        memberId: presetItemMemberId || undefined,
+      };
+      updated = [...localPresets, newItem];
+      setPresetFeedbackMsg(`Novo item "${trimmed}" criado com sucesso!`);
+    }
+
+    setLocalPresets(updated);
+    if (onUpdatePresetItems) {
+      onUpdatePresetItems(updated);
+    }
+
+    // Reset do formulário do editor
+    setEditingPresetId(null);
+    setPresetItemName('');
+    setPresetItemCategoryId('');
+    setPresetItemMemberId('');
+
+    setTimeout(() => setPresetFeedbackMsg(''), 3000);
+  };
+
+  const handleStartEditPreset = (item: CreditCardPresetItem) => {
+    setEditingPresetId(item.id);
+    setPresetItemName(item.name);
+    setPresetItemCategoryId(item.categoryId || '');
+    setPresetItemMemberId(item.memberId || '');
+    setPresetFeedbackMsg('');
+  };
+
+  const handleDeletePreset = (id: string) => {
+    const itemToDelete = localPresets.find((p) => p.id === id);
+    const updated = localPresets.filter((p) => p.id !== id);
+    setLocalPresets(updated);
+    if (onUpdatePresetItems) {
+      onUpdatePresetItems(updated);
+    }
+    if (editingPresetId === id) {
+      setEditingPresetId(null);
+      setPresetItemName('');
+      setPresetItemCategoryId('');
+      setPresetItemMemberId('');
+    }
+    if (itemToDelete) {
+      setPresetFeedbackMsg(`Item "${itemToDelete.name}" removido.`);
+      setTimeout(() => setPresetFeedbackMsg(''), 3000);
+    }
+  };
+
+  const handleResetDefaultPresets = () => {
+    setLocalPresets(DEFAULT_CREDIT_CARD_PRESETS);
+    if (onUpdatePresetItems) {
+      onUpdatePresetItems(DEFAULT_CREDIT_CARD_PRESETS);
+    }
+    setEditingPresetId(null);
+    setPresetItemName('');
+    setPresetFeedbackMsg('Itens padrão restaurados com sucesso.');
+    setTimeout(() => setPresetFeedbackMsg(''), 3000);
+  };
+
+  const handleSelectPresetItem = (preset: CreditCardPresetItem) => {
     setDescription(preset.name);
-    if (preset.categoryNamePartial) {
+    if (preset.categoryId) {
+      setCategoryId(preset.categoryId);
+    } else if (preset.categoryNamePartial) {
       const matchedCat = categories.find(
         (c) =>
           c.type !== 'income' &&
@@ -143,7 +247,10 @@ export const CreditCardModal: React.FC<CreditCardModalProps> = ({
         setCategoryId(matchedCat.id);
       }
     }
-    if (preset.memberNamePartial) {
+
+    if (preset.memberId) {
+      setMemberId(preset.memberId);
+    } else if (preset.memberNamePartial) {
       const matchedMem = members.find((m) =>
         m.name.toLowerCase().includes(preset.memberNamePartial!.toLowerCase())
       );
@@ -223,27 +330,286 @@ export const CreditCardModal: React.FC<CreditCardModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
-          {/* Quick Preset Buttons (user requested items) */}
-          <div className="space-y-1.5 pb-1">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-              Lançamentos Rápidos do Cartão (Clique para Preencher):
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {PRESET_EXPENSE_TERMS.map((preset) => (
-                <button
-                  key={preset.name}
-                  type="button"
-                  onClick={() => handleSelectPreset(preset)}
-                  className={`px-2.5 py-1 text-xs rounded-md border transition-all ${
-                    description.toLowerCase() === preset.name.toLowerCase()
-                      ? 'bg-indigo-600 text-white border-indigo-600 font-semibold shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  {preset.name}
-                </button>
-              ))}
+          {/* Campo de Seleção e Edição dos Itens a Serem Preenchidos */}
+          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 rounded-xl p-3.5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <div className="min-w-0">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                    Itens a Serem Preenchidos
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    Clique para preencher os dados ou use o botão de edição ao lado
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingPresets(!isEditingPresets);
+                  if (isEditingPresets) {
+                    setEditingPresetId(null);
+                    setPresetItemName('');
+                    setPresetFeedbackMsg('');
+                  }
+                }}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 shrink-0 ml-2 ${
+                  isEditingPresets
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                    : 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/40'
+                }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>{isEditingPresets ? 'Concluir' : 'Editar Itens'}</span>
+              </button>
             </div>
+
+            {presetFeedbackMsg && (
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs text-indigo-700 dark:text-indigo-300 animate-in fade-in">
+                {presetFeedbackMsg}
+              </div>
+            )}
+
+            {/* Visualização Padrão (Clique para Preencher o Formulário) */}
+            {!isEditingPresets ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {localPresets.map((preset) => {
+                    const isSelected = description.toLowerCase() === preset.name.toLowerCase();
+                    const cat = categories.find((c) => c.id === preset.categoryId);
+                    const mem = members.find((m) => m.id === preset.memberId);
+
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => handleSelectPresetItem(preset)}
+                        className={`px-2.5 py-1.5 text-xs rounded-lg border transition-all flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white border-indigo-600 font-semibold shadow-xs ring-2 ring-indigo-500/20'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        }`}
+                        title={`${preset.name}${cat ? ` · Categoria: ${cat.name}` : ''}${mem ? ` · Membro: ${mem.name}` : ''}`}
+                      >
+                        <span>{preset.name}</span>
+                        {mem && (
+                          <span
+                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{ backgroundColor: mem.color }}
+                            title={`Membro padrão: ${mem.name}`}
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingPresets(true);
+                      setEditingPresetId(null);
+                      setPresetItemName('');
+                    }}
+                    className="px-2.5 py-1.5 text-xs rounded-lg border border-dashed border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40 transition-colors flex items-center gap-1 font-semibold"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Novo Item</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Campo de Edição: Criar Novos Itens e Editar os Existentes */
+              <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                {/* Formulário de Criação / Edição do Item */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      {editingPresetId ? (
+                        <>
+                          <Edit2 className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Editar Item Selecionado</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Criar Novo Item para Preenchimento</span>
+                        </>
+                      )}
+                    </span>
+                    {editingPresetId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingPresetId(null);
+                          setPresetItemName('');
+                          setPresetItemCategoryId('');
+                          setPresetItemMemberId('');
+                        }}
+                        className="text-[11px] text-slate-500 hover:text-slate-700 dark:text-slate-400 hover:underline"
+                      >
+                        Cancelar edição
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {/* Nome do Item */}
+                    <div className="sm:col-span-1">
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        Nome do Item *
+                      </label>
+                      <input
+                        type="text"
+                        value={presetItemName}
+                        onChange={(e) => setPresetItemName(e.target.value)}
+                        placeholder="Ex: Pet shop, Academia..."
+                        className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
+                      />
+                    </div>
+
+                    {/* Categoria Padrão */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        Categoria Sugerida
+                      </label>
+                      <select
+                        value={presetItemCategoryId}
+                        onChange={(e) => setPresetItemCategoryId(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
+                      >
+                        <option value="">(Nenhuma / Manter atual)</option>
+                        {expenseCategories.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Membro da Família Padrão */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        Membro Sugerido
+                      </label>
+                      <select
+                        value={presetItemMemberId}
+                        onChange={(e) => setPresetItemMemberId(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
+                      >
+                        <option value="">(Nenhum / Manter atual)</option>
+                        {members.map((mem) => (
+                          <option key={mem.id} value={mem.id}>
+                            {mem.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={handleSavePresetItem}
+                      className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
+                    >
+                      {editingPresetId ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                      <span>{editingPresetId ? 'Salvar Alteração do Item' : '+ Adicionar Campo / Item'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lista de Itens Existentes */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                      Itens Disponíveis ({localPresets.length}):
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Clique no lápis para editar ou na lixeira para excluir
+                    </span>
+                  </div>
+
+                  <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                    {localPresets.map((item) => {
+                      const cat = categories.find((c) => c.id === item.categoryId);
+                      const mem = members.find((m) => m.id === item.memberId);
+                      const isCurrentlyEditing = editingPresetId === item.id;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className={`p-2 rounded-lg border text-xs flex items-center justify-between transition-colors ${
+                            isCurrentlyEditing
+                              ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 ring-1 ring-amber-500/20'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
+                            <span className="font-semibold text-slate-900 dark:text-white truncate">
+                              {item.name}
+                            </span>
+                            {cat && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 truncate">
+                                {cat.name}
+                              </span>
+                            )}
+                            {mem && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 truncate flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: mem.color }} />
+                                <span>{mem.name}</span>
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditPreset(item)}
+                              className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                              title="Editar este item"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePreset(item.id)}
+                              className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                              title="Excluir este item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Rodapé da Edição */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700 text-xs">
+                  <button
+                    type="button"
+                    onClick={handleResetDefaultPresets}
+                    className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline text-[11px] flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Restaurar Padrões</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingPresets(false);
+                      setEditingPresetId(null);
+                      setPresetItemName('');
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
+                  >
+                    Concluir Edição
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Descrição */}

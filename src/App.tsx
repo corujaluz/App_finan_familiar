@@ -16,8 +16,8 @@ import { AlarmSettingsModal } from './components/AlarmSettingsModal';
 import { ActiveAlarmBanner } from './components/ActiveAlarmBanner';
 import { CreditCardManager } from './components/CreditCardManager';
 import { playAlarmSound } from './utils/soundAlarm';
-import { AlarmSettings, Category, CreditCardExpense, FamilyMember, IncomeSource, PaymentMethod, Transaction, UserAccount } from './types/finance';
-import { INITIAL_CATEGORIES, INITIAL_CREDIT_CARD_EXPENSES, INITIAL_INCOME_SOURCES, INITIAL_MEMBERS, INITIAL_TRANSACTIONS } from './data/initialData';
+import { AlarmSettings, Category, CreditCardExpense, CreditCardPresetItem, FamilyMember, IncomeSource, PaymentMethod, Transaction, UserAccount } from './types/finance';
+import { DEFAULT_CREDIT_CARD_PRESETS, INITIAL_CATEGORIES, INITIAL_CREDIT_CARD_EXPENSES, INITIAL_INCOME_SOURCES, INITIAL_MEMBERS, INITIAL_TRANSACTIONS } from './data/initialData';
 import { formatBRL, formatMonthYear } from './utils/formatters';
 import { ArrowDownLeft, ArrowUpRight, CheckCircle2, ShieldAlert, Briefcase, Bell, CreditCard, Lock, LogOut, PieChart, BarChart3, TrendingDown, ArrowRight } from 'lucide-react';
 
@@ -694,6 +694,14 @@ export default function App() {
     }));
   };
 
+  const handleUpdateCreditCardPresets = (presets: CreditCardPresetItem[]) => {
+    setAppState((prev) => ({
+      ...prev,
+      creditCardPresets: presets,
+    }));
+    setHasUnsavedChanges(true);
+  };
+
   // Sync total card expenses into Lançamentos invoice line (with isCreditCardInvoice: true, not counted in total)
   const handleSyncInvoiceToTransactions = (totalCardAmount: number) => {
     setAppState((prev) => {
@@ -755,6 +763,7 @@ export default function App() {
       members: INITIAL_MEMBERS,
       incomeSources: INITIAL_INCOME_SOURCES,
       creditCardExpenses: INITIAL_CREDIT_CARD_EXPENSES,
+      creditCardPresets: DEFAULT_CREDIT_CARD_PRESETS,
       alarmSettings: DEFAULT_ALARM_SETTINGS,
       userAccounts: DEFAULT_USER_ACCOUNTS,
       activeUserId: 'usr_eduardo',
@@ -1167,6 +1176,8 @@ export default function App() {
               onDuplicateExpense={handleDuplicateCreditCardExpense}
               onSyncInvoiceToTransactions={handleSyncInvoiceToTransactions}
               onExportCSV={() => exportCreditCardExpensesAsCSV(appState)}
+              creditCardPresets={appState.creditCardPresets || DEFAULT_CREDIT_CARD_PRESETS}
+              onUpdateCreditCardPresets={handleUpdateCreditCardPresets}
             />
           </div>
         )}

@@ -63,6 +63,16 @@ export interface AlarmSettings {
   isMutedForSession?: boolean;
 }
 
+export interface CreditCardPresetItem {
+  id: string;
+  name: string; // Nome/termo do item preenchível: "Combustível", "Farmácia", "Mercado", etc.
+  categoryId?: string; // Categoria padrão sugerida
+  memberId?: string; // Membro padrão sugerido
+  categoryNamePartial?: string;
+  memberNamePartial?: string;
+  defaultAmount?: number;
+}
+
 export interface CreditCardExpense {
   id: string;
   description: string; // Nome/termo do lançamento: "Combustível", "Farmácia", "Mercado", "Casa", "Graciela", "Eduardo", "Haniela", etc.

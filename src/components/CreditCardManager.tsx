@@ -22,7 +22,7 @@ import {
   Percent,
   Target,
 } from 'lucide-react';
-import { Category, CreditCardExpense, FamilyMember, Transaction } from '../types/finance';
+import { Category, CreditCardExpense, CreditCardPresetItem, FamilyMember, Transaction } from '../types/finance';
 import { formatBRL, formatDateBR, formatMonthYear } from '../utils/formatters';
 import { CreditCardModal } from './CreditCardModal';
 
@@ -41,6 +41,8 @@ interface CreditCardManagerProps {
   onDuplicateExpense: (expense: CreditCardExpense) => void;
   onSyncInvoiceToTransactions?: (totalCardAmount: number) => void;
   onExportCSV?: () => void;
+  creditCardPresets?: CreditCardPresetItem[];
+  onUpdateCreditCardPresets?: (presets: CreditCardPresetItem[]) => void;
 }
 
 export const CreditCardManager: React.FC<CreditCardManagerProps> = ({
@@ -55,6 +57,8 @@ export const CreditCardManager: React.FC<CreditCardManagerProps> = ({
   onDuplicateExpense,
   onSyncInvoiceToTransactions,
   onExportCSV,
+  creditCardPresets,
+  onUpdateCreditCardPresets,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<CreditCardExpense | null>(null);
@@ -1079,6 +1083,8 @@ export const CreditCardManager: React.FC<CreditCardManagerProps> = ({
         members={members}
         defaultMonthKey={currentMonthKey}
         knownCardNames={knownCardNames}
+        presetItems={creditCardPresets}
+        onUpdatePresetItems={onUpdateCreditCardPresets}
       />
     </div>
   );

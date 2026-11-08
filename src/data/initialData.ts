@@ -1,4 +1,20 @@
-import { Category, CreditCardExpense, FamilyMember, IncomeSource, Transaction } from '../types/finance';
+import { Category, CreditCardExpense, CreditCardPresetItem, FamilyMember, IncomeSource, Transaction } from '../types/finance';
+
+export const DEFAULT_CREDIT_CARD_PRESETS: CreditCardPresetItem[] = [
+  { id: 'preset_combustivel', name: 'Combustível', categoryId: 'cat_transporte', categoryNamePartial: 'transporte' },
+  { id: 'preset_farmacia', name: 'Farmácia', categoryId: 'cat_saude', categoryNamePartial: 'saúde' },
+  { id: 'preset_mercado', name: 'Mercado', categoryId: 'cat_mercado', categoryNamePartial: 'mercado' },
+  { id: 'preset_casa', name: 'Casa', categoryId: 'cat_moradia', categoryNamePartial: 'moradia' },
+  { id: 'preset_graciela', name: 'Graciela', memberId: 'mem_graciela', categoryId: 'cat_pessoal', memberNamePartial: 'graciela' },
+  { id: 'preset_eduardo', name: 'Eduardo', memberId: 'mem_eduardo', categoryId: 'cat_pessoal', memberNamePartial: 'eduardo' },
+  { id: 'preset_haniela', name: 'Haniela', memberId: 'mem_haniela', categoryId: 'cat_educacao', memberNamePartial: 'haniela' },
+  { id: 'preset_material_escolar', name: 'Material escolar', categoryId: 'cat_educacao', categoryNamePartial: 'educação' },
+  { id: 'preset_restaurante', name: 'Restaurante', categoryId: 'cat_lazer', categoryNamePartial: 'alimentação' },
+  { id: 'preset_padaria', name: 'Padaria', categoryId: 'cat_mercado', categoryNamePartial: 'alimentação' },
+  { id: 'preset_roupas', name: 'Roupas', categoryId: 'cat_pessoal', categoryNamePartial: 'vestuário' },
+  { id: 'preset_calcados', name: 'Calçados', categoryId: 'cat_pessoal', categoryNamePartial: 'vestuário' },
+  { id: 'preset_outros', name: 'Outros', categoryId: 'cat_outros', categoryNamePartial: 'outros' },
+];
 
 export const INITIAL_CREDIT_CARD_EXPENSES: CreditCardExpense[] = [
   // --- NOVEMBRO 2026 (Gastos do Cartão de Crédito - Total: R$ 3.480,50) ---

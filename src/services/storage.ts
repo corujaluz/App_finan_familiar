@@ -1,5 +1,5 @@
-import { AlarmSettings, Category, CreditCardExpense, FamilyMember, IncomeSource, Transaction, UserAccount } from '../types/finance';
-import { INITIAL_CATEGORIES, INITIAL_CREDIT_CARD_EXPENSES, INITIAL_INCOME_SOURCES, INITIAL_MEMBERS, INITIAL_TRANSACTIONS } from '../data/initialData';
+import { AlarmSettings, Category, CreditCardExpense, CreditCardPresetItem, FamilyMember, IncomeSource, Transaction, UserAccount } from '../types/finance';
+import { DEFAULT_CREDIT_CARD_PRESETS, INITIAL_CATEGORIES, INITIAL_CREDIT_CARD_EXPENSES, INITIAL_INCOME_SOURCES, INITIAL_MEMBERS, INITIAL_TRANSACTIONS } from '../data/initialData';
 
 const STORAGE_KEYS = {
   TRANSACTIONS: 'heckler_family_transactions_v2',
@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
   MEMBERS: 'heckler_family_members_v2',
   INCOME_SOURCES: 'heckler_family_income_sources_v2',
   CREDIT_CARD_EXPENSES: 'heckler_family_credit_card_v2',
+  CREDIT_CARD_PRESETS: 'heckler_family_credit_card_presets_v2',
   ALARM_SETTINGS: 'heckler_family_alarm_settings_v2',
   USER_ACCOUNTS: 'heckler_family_user_accounts_v2',
   ACTIVE_USER_ID: 'heckler_family_active_user_v2',
@@ -53,6 +54,7 @@ export interface AppState {
   members: FamilyMember[];
   incomeSources: IncomeSource[];
   creditCardExpenses: CreditCardExpense[];
+  creditCardPresets: CreditCardPresetItem[];
   alarmSettings: AlarmSettings;
   userAccounts: UserAccount[];
   activeUserId: string | null;
@@ -65,6 +67,7 @@ export const loadStoredData = (): AppState => {
     const rawMem = localStorage.getItem(STORAGE_KEYS.MEMBERS);
     const rawSources = localStorage.getItem(STORAGE_KEYS.INCOME_SOURCES);
     const rawCC = localStorage.getItem(STORAGE_KEYS.CREDIT_CARD_EXPENSES);
+    const rawPresets = localStorage.getItem(STORAGE_KEYS.CREDIT_CARD_PRESETS);
     const rawAlarm = localStorage.getItem(STORAGE_KEYS.ALARM_SETTINGS);
     const rawAccounts = localStorage.getItem(STORAGE_KEYS.USER_ACCOUNTS);
     const rawActiveUser = localStorage.getItem(STORAGE_KEYS.ACTIVE_USER_ID);
@@ -74,6 +77,7 @@ export const loadStoredData = (): AppState => {
     const members: FamilyMember[] = rawMem ? JSON.parse(rawMem) : INITIAL_MEMBERS;
     const incomeSources: IncomeSource[] = rawSources ? JSON.parse(rawSources) : INITIAL_INCOME_SOURCES;
     const creditCardExpenses: CreditCardExpense[] = rawCC ? JSON.parse(rawCC) : INITIAL_CREDIT_CARD_EXPENSES;
+    const creditCardPresets: CreditCardPresetItem[] = rawPresets ? JSON.parse(rawPresets) : DEFAULT_CREDIT_CARD_PRESETS;
     const alarmSettings: AlarmSettings = rawAlarm ? { ...DEFAULT_ALARM_SETTINGS, ...JSON.parse(rawAlarm) } : DEFAULT_ALARM_SETTINGS;
     const userAccounts: UserAccount[] = rawAccounts ? JSON.parse(rawAccounts) : DEFAULT_USER_ACCOUNTS;
     const activeUserId: string | null =
@@ -83,7 +87,7 @@ export const loadStoredData = (): AppState => {
         ? null
         : 'usr_eduardo';
 
-    return { transactions, categories, members, incomeSources, creditCardExpenses, alarmSettings, userAccounts, activeUserId };
+    return { transactions, categories, members, incomeSources, creditCardExpenses, creditCardPresets, alarmSettings, userAccounts, activeUserId };
   } catch (err) {
     console.error('Erro ao ler do localStorage, usando valores padrão:', err);
     return {
@@ -92,6 +96,7 @@ export const loadStoredData = (): AppState => {
       members: INITIAL_MEMBERS,
       incomeSources: INITIAL_INCOME_SOURCES,
       creditCardExpenses: INITIAL_CREDIT_CARD_EXPENSES,
+      creditCardPresets: DEFAULT_CREDIT_CARD_PRESETS,
       alarmSettings: DEFAULT_ALARM_SETTINGS,
       userAccounts: DEFAULT_USER_ACCOUNTS,
       activeUserId: 'usr_eduardo',
@@ -106,6 +111,7 @@ export const persistData = (state: AppState): void => {
     localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(state.members));
     localStorage.setItem(STORAGE_KEYS.INCOME_SOURCES, JSON.stringify(state.incomeSources));
     localStorage.setItem(STORAGE_KEYS.CREDIT_CARD_EXPENSES, JSON.stringify(state.creditCardExpenses));
+    localStorage.setItem(STORAGE_KEYS.CREDIT_CARD_PRESETS, JSON.stringify(state.creditCardPresets || DEFAULT_CREDIT_CARD_PRESETS));
     localStorage.setItem(STORAGE_KEYS.ALARM_SETTINGS, JSON.stringify(state.alarmSettings));
     localStorage.setItem(STORAGE_KEYS.USER_ACCOUNTS, JSON.stringify(state.userAccounts));
     if (state.activeUserId) {

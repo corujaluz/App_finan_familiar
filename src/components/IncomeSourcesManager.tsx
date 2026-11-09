@@ -14,6 +14,7 @@ import {
   ToggleLeft,
   ToggleRight,
   ArrowRight,
+  Tag,
 } from 'lucide-react';
 import { Category, FamilyMember, IncomeSource, Transaction } from '../types/finance';
 import { formatBRL, formatMonthYear } from '../utils/formatters';
@@ -29,6 +30,7 @@ interface IncomeSourcesManagerProps {
   onDeleteIncomeSource: (id: string) => void;
   onQuickIncomeForSource: (source: IncomeSource) => void;
   onConfirmIncomePaid?: (txId: string) => void;
+  onOpenCategoryManager?: () => void;
 }
 
 export const IncomeSourcesManager: React.FC<IncomeSourcesManagerProps> = ({
@@ -42,6 +44,7 @@ export const IncomeSourcesManager: React.FC<IncomeSourcesManagerProps> = ({
   onDeleteIncomeSource,
   onQuickIncomeForSource,
   onConfirmIncomePaid,
+  onOpenCategoryManager,
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingSource, setEditingSource] = useState<IncomeSource | null>(null);
@@ -258,9 +261,21 @@ export const IncomeSourcesManager: React.FC<IncomeSourcesManagerProps> = ({
 
             {/* Categoria de Renda */}
             <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Categoria de Renda *
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  Categoria de Renda *
+                </label>
+                {onOpenCategoryManager && (
+                  <button
+                    type="button"
+                    onClick={onOpenCategoryManager}
+                    className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold flex items-center gap-0.5"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Nova / Editar</span>
+                  </button>
+                )}
+              </div>
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}

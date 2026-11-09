@@ -21,6 +21,7 @@ import {
   Users,
   Percent,
   Target,
+  Tag,
 } from 'lucide-react';
 import { Category, CreditCardExpense, CreditCardPresetItem, FamilyMember, Transaction } from '../types/finance';
 import { formatBRL, formatDateBR, formatMonthYear } from '../utils/formatters';
@@ -43,6 +44,7 @@ interface CreditCardManagerProps {
   onExportCSV?: () => void;
   creditCardPresets?: CreditCardPresetItem[];
   onUpdateCreditCardPresets?: (presets: CreditCardPresetItem[]) => void;
+  onOpenCategoryManager?: () => void;
 }
 
 export const CreditCardManager: React.FC<CreditCardManagerProps> = ({
@@ -59,6 +61,7 @@ export const CreditCardManager: React.FC<CreditCardManagerProps> = ({
   onExportCSV,
   creditCardPresets,
   onUpdateCreditCardPresets,
+  onOpenCategoryManager,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<CreditCardExpense | null>(null);
@@ -288,6 +291,18 @@ export const CreditCardManager: React.FC<CreditCardManagerProps> = ({
               >
                 <Download className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Exportar Planilha</span>
+              </button>
+            )}
+
+            {onOpenCategoryManager && (
+              <button
+                type="button"
+                onClick={onOpenCategoryManager}
+                title="Gerenciar, adicionar ou editar categorias de gastos"
+                className="px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-colors flex items-center gap-1.5"
+              >
+                <Tag className="w-3.5 h-3.5 text-indigo-500" />
+                <span className="hidden sm:inline">Categorias</span>
               </button>
             )}
 

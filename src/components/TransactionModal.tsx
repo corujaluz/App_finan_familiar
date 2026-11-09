@@ -11,6 +11,7 @@ interface TransactionModalProps {
   members: FamilyMember[];
   incomeSources: IncomeSource[];
   defaultMonthKey: string; // "YYYY-MM"
+  onOpenCategoryManager?: () => void;
 }
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({
@@ -22,6 +23,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   members,
   incomeSources,
   defaultMonthKey,
+  onOpenCategoryManager,
 }) => {
   if (!isOpen) return null;
 
@@ -307,9 +309,21 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           {/* Category & Family Member */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Categoria *
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  Categoria *
+                </label>
+                {onOpenCategoryManager && (
+                  <button
+                    type="button"
+                    onClick={onOpenCategoryManager}
+                    className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold flex items-center gap-0.5"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Nova / Editar</span>
+                  </button>
+                )}
+              </div>
               <select
                 value={categoryId}
                 onChange={(e) => {

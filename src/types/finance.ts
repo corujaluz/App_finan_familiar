@@ -137,7 +137,7 @@ export interface ChangeLogEntry {
   timestamp: string; // Hora formatada HH:MM:SS
   fullDate: string; // YYYY-MM-DD
   user: string; // Nome do usuário que realizou a ação
-  entity: 'Lançamento' | 'Cartão de Crédito' | 'Fonte de Renda' | 'Orçamento' | 'Segurança' | 'Sistema';
+  entity: 'Lançamento' | 'Cartão de Crédito' | 'Fonte de Renda' | 'Orçamento' | 'Categorias' | 'Segurança' | 'Sistema';
   action: 'create' | 'update' | 'delete' | 'payment' | 'pin_change' | 'save';
   actionLabel: string; // ex: "Nova Despesa", "Conta Paga", "PIN Alterado"
   details: string; // Detalhes legíveis do que foi modificado

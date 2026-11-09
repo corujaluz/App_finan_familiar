@@ -14,6 +14,7 @@ import { LoginModal } from './components/LoginModal';
 import { ChangePinModal } from './components/ChangePinModal';
 import { AuditLogModal } from './components/AuditLogModal';
 import { TwoFactorSetupModal } from './components/TwoFactorSetupModal';
+import { CategoryEditModal } from './components/CategoryEditModal';
 import { AppState, DEFAULT_ALARM_SETTINGS, DEFAULT_USER_ACCOUNTS, INITIAL_CHANGE_LOGS, loadStoredData, persistData, mergeIncomingServerState, exportCreditCardExpensesAsCSV } from './services/storage';
 import { cloudSync } from './services/cloudSync';
 import { AlarmSettingsModal } from './components/AlarmSettingsModal';
@@ -88,6 +89,8 @@ export default function App() {
   const [isChangePinModalOpen, setIsChangePinModalOpen] = useState(false);
   const [isAuditLogModalOpen, setIsAuditLogModalOpen] = useState(false);
   const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [categoryToEdit, setCategoryToEdit] = useState<Category | null>(null);
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<string | null>(null);
   const [remoteSyncNotice, setRemoteSyncNotice] = useState<{ message: string; savedBy: string; savedAt: string } | null>(null);
   const [isSessionMuted, setIsSessionMuted] = useState(false);
@@ -145,8 +148,8 @@ export default function App() {
   // Auditoria em tempo real: registra modificações feitas no aplicativo
   const addChangeLog = useCallback(
     (
-      action: 'create' | 'update' | 'delete' | 'payment' | 'pin_change' | 'save',
-      entity: 'Lançamento' | 'Cartão de Crédito' | 'Fonte de Renda' | 'Orçamento' | 'Segurança' | 'Sistema',
+      action: ChangeLogEntry['action'],
+      entity: ChangeLogEntry['entity'],
       actionLabel: string,
       details: string
     ) => {
@@ -651,6 +654,77 @@ export default function App() {
         c.id === categoryId ? { ...c, monthlyBudget: newBudget } : c
       ),
     }));
+    addChangeLog(
+      'update',
+      'Orçamento',
+      'Teto de Categoria',
+      `Teto da categoria alterado para ${formatBRL(newBudget)}.`
+    );
+    setHasUnsavedChanges(true);
+  };
+
+  // Category CRUD Handlers (Criar, Editar, Excluir)
+  const handleSaveCategory = (categoryData: Omit<Category, 'id'>, editId?: string) => {
+    setAppState((prev) => {
+      let updatedCategories: Category[];
+      if (editId) {
+        updatedCategories = prev.categories.map((c) =>
+          c.id === editId ? { ...c, ...categoryData } : c
+        );
+      } else {
+        const newCat: Category = {
+          ...categoryData,
+          id: `cat_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        };
+        updatedCategories = [...prev.categories, newCat];
+      }
+      return { ...prev, categories: updatedCategories };
+    });
+
+    if (editId) {
+      addChangeLog(
+        'update',
+        'Categorias',
+        'Edição de Categoria',
+        `Categoria "${categoryData.name}" foi alterada.`
+      );
+    } else {
+      addChangeLog(
+        'create',
+        'Categorias',
+        'Nova Categoria',
+        `Nova categoria "${categoryData.name}" criada.`
+      );
+    }
+    setHasUnsavedChanges(true);
+  };
+
+  const handleDeleteCategory = (categoryId: string) => {
+    const targetCat = appState.categories.find((c) => c.id === categoryId);
+    if (categoryId === 'cat_cartao') return;
+
+    setAppState((prev) => ({
+      ...prev,
+      categories: prev.categories.filter((c) => c.id !== categoryId),
+    }));
+
+    addChangeLog(
+      'delete',
+      'Categorias',
+      'Exclusão de Categoria',
+      `Categoria "${targetCat?.name || categoryId}" foi excluída.`
+    );
+    setHasUnsavedChanges(true);
+  };
+
+  const handleOpenNewCategory = () => {
+    setCategoryToEdit(null);
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleOpenEditCategory = (cat: Category) => {
+    setCategoryToEdit(cat);
+    setIsCategoryModalOpen(true);
   };
 
   // Family Member handlers
@@ -1063,7 +1137,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl xl:max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Active Audible Alarm Banner */}
         <ActiveAlarmBanner
           settings={appState.alarmSettings}
@@ -1399,6 +1473,7 @@ export default function App() {
               onExportCSV={() => exportCreditCardExpensesAsCSV(appState)}
               creditCardPresets={appState.creditCardPresets || DEFAULT_CREDIT_CARD_PRESETS}
               onUpdateCreditCardPresets={handleUpdateCreditCardPresets}
+              onOpenCategoryManager={handleOpenNewCategory}
             />
           </div>
         )}
@@ -1417,6 +1492,7 @@ export default function App() {
               onDeleteIncomeSource={handleDeleteIncomeSource}
               onQuickIncomeForSource={handleQuickIncomeForSource}
               onConfirmIncomePaid={handleConfirmIncomePaid}
+              onOpenCategoryManager={handleOpenNewCategory}
             />
           </div>
         )}
@@ -1453,6 +1529,8 @@ export default function App() {
               creditCardExpenses={appState.creditCardExpenses || []}
               currentMonthKey={currentMonthKey}
               onUpdateCategoryBudget={handleUpdateCategoryBudget}
+              onOpenNewCategory={handleOpenNewCategory}
+              onOpenEditCategory={handleOpenEditCategory}
             />
           </div>
         )}
@@ -1474,7 +1552,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-6 text-center text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="max-w-7xl xl:max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>Heckler Family · Gestão e Controle Financeiro Familiar</span>
           <div className="flex items-center gap-3">
             <button
@@ -1512,6 +1590,7 @@ export default function App() {
         members={appState.members}
         incomeSources={appState.incomeSources}
         defaultMonthKey={currentMonthKey}
+        onOpenCategoryManager={handleOpenNewCategory}
       />
 
       {/* 3. Export / Import Backup Modal */}
@@ -1575,6 +1654,19 @@ export default function App() {
           onUpdate2FA={handleUpdate2FA}
         />
       )}
+
+      {/* 9. Category Create & Edit Modal */}
+      <CategoryEditModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => {
+          setIsCategoryModalOpen(false);
+          setCategoryToEdit(null);
+        }}
+        categoryToEdit={categoryToEdit}
+        onSaveCategory={handleSaveCategory}
+        onDeleteCategory={handleDeleteCategory}
+        existingCategoriesCount={appState.categories.length}
+      />
 
       {/* Notificação Flutuante de Sincronização em Tempo Real (Atualização pelo outro usuário) */}
       {remoteSyncNotice && (

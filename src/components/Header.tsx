@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Sun, Moon, Download, Upload, Wallet, Bell, Shield, User, LogIn, LogOut, Save, Check, RefreshCw, KeyRound, History } from 'lucide-react';
+import { Plus, Sun, Moon, Download, Upload, Wallet, Bell, Shield, ShieldCheck, User, LogIn, LogOut, Save, Check, RefreshCw, KeyRound, History } from 'lucide-react';
 import { UserAccount } from '../types/finance';
 
 interface HeaderProps {
@@ -21,6 +21,7 @@ interface HeaderProps {
   lastSavedTime?: string | null;
   onOpenChangePin?: () => void;
   onOpenAuditLog?: () => void;
+  onOpen2FAModal?: () => void;
   pendingModificationsCount?: number;
 }
 
@@ -42,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
   lastSavedTime = null,
   onOpenChangePin,
   onOpenAuditLog,
+  onOpen2FAModal,
   pendingModificationsCount = 0,
 }) => {
   return (
@@ -204,6 +206,20 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <KeyRound className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                 <span className="hidden xl:inline">Alterar PIN</span>
+              </button>
+            )}
+
+            {/* Google Authenticator (2FA) Security Management */}
+            {currentUser && onOpen2FAModal && (
+              <button
+                onClick={onOpen2FAModal}
+                title={`Configurar Google Authenticator (2FA) para ${currentUser.name}`}
+                aria-label="Google Authenticator"
+                className="p-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-medium border border-indigo-200/60 dark:border-indigo-900/50"
+              >
+                <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="hidden xl:inline">Google Authenticator</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="2FA Ativo" />
               </button>
             )}
 

@@ -13,7 +13,9 @@ import { ExportImportModal } from './components/ExportImportModal';
 import { LoginModal } from './components/LoginModal';
 import { ChangePinModal } from './components/ChangePinModal';
 import { AuditLogModal } from './components/AuditLogModal';
-import { AppState, DEFAULT_ALARM_SETTINGS, DEFAULT_USER_ACCOUNTS, INITIAL_CHANGE_LOGS, loadStoredData, persistData, exportCreditCardExpensesAsCSV } from './services/storage';
+import { TwoFactorSetupModal } from './components/TwoFactorSetupModal';
+import { AppState, DEFAULT_ALARM_SETTINGS, DEFAULT_USER_ACCOUNTS, INITIAL_CHANGE_LOGS, loadStoredData, persistData, mergeIncomingServerState, exportCreditCardExpensesAsCSV } from './services/storage';
+import { cloudSync } from './services/cloudSync';
 import { AlarmSettingsModal } from './components/AlarmSettingsModal';
 import { ActiveAlarmBanner } from './components/ActiveAlarmBanner';
 import { CreditCardManager } from './components/CreditCardManager';
@@ -21,7 +23,7 @@ import { playAlarmSound } from './utils/soundAlarm';
 import { AlarmSettings, Category, ChangeLogEntry, CreditCardExpense, CreditCardPresetItem, FamilyMember, IncomeSource, PaymentMethod, Transaction, UserAccount } from './types/finance';
 import { DEFAULT_CREDIT_CARD_PRESETS, INITIAL_CATEGORIES, INITIAL_CREDIT_CARD_EXPENSES, INITIAL_INCOME_SOURCES, INITIAL_MEMBERS, INITIAL_TRANSACTIONS } from './data/initialData';
 import { formatBRL, formatMonthYear } from './utils/formatters';
-import { ArrowDownLeft, ArrowUpRight, CheckCircle2, ShieldAlert, Briefcase, Bell, CreditCard, Lock, LogOut, PieChart, BarChart3, TrendingDown, ArrowRight, History } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, CheckCircle2, ShieldAlert, Briefcase, Bell, CreditCard, Lock, LogOut, PieChart, BarChart3, TrendingDown, ArrowRight, History, RefreshCw, X } from 'lucide-react';
 
 export default function App() {
   // Theme state
@@ -85,7 +87,9 @@ export default function App() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isChangePinModalOpen, setIsChangePinModalOpen] = useState(false);
   const [isAuditLogModalOpen, setIsAuditLogModalOpen] = useState(false);
+  const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<string | null>(null);
+  const [remoteSyncNotice, setRemoteSyncNotice] = useState<{ message: string; savedBy: string; savedAt: string } | null>(null);
   const [isSessionMuted, setIsSessionMuted] = useState(false);
   const [initialStatusFilter, setInitialStatusFilter] = useState<string>('all');
 
@@ -97,6 +101,46 @@ export default function App() {
     const found = accounts.find((u) => u.id === appState.activeUserId);
     return found || null;
   }, [appState.activeUserId, appState.userAccounts]);
+
+  // Sincronização em tempo real com o servidor e outros dispositivos/usuários
+  useEffect(() => {
+    // 1. Busca os dados canônicos compartilhados do servidor ao carregar
+    cloudSync.fetchCanonicalData().then((res) => {
+      if (res.success && res.data) {
+        setAppState((prev) => {
+          const merged = mergeIncomingServerState(prev, res.data!);
+          persistData(merged);
+          return merged;
+        });
+      } else {
+        // Inicializa o banco de dados do servidor se ainda não existir
+        cloudSync.saveCanonicalData(appStateRef.current, 'Inicialização', new Date().toLocaleTimeString('pt-BR'));
+      }
+    });
+
+    // 2. Assina transmissões em tempo real via Server-Sent Events (SSE) e BroadcastChannel
+    const unsubscribe = cloudSync.subscribe((serverData, savedBy, savedAt) => {
+      setAppState((prev) => {
+        const merged = mergeIncomingServerState(prev, serverData);
+        persistData(merged);
+        return merged;
+      });
+
+      setRemoteSyncNotice({
+        message: `Dados sincronizados em tempo real: ${savedBy} atualizou as informações`,
+        savedBy,
+        savedAt,
+      });
+
+      setTimeout(() => {
+        setRemoteSyncNotice(null);
+      }, 6000);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // Auditoria em tempo real: registra modificações feitas no aplicativo
   const addChangeLog = useCallback(
@@ -141,8 +185,10 @@ export default function App() {
     try {
       const now = new Date();
       const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const currentUserName = currentUser?.name || 'Administrador';
 
       // Atualiza o status de todas as modificações pendentes para 'salvo' com a estampa de tempo
+      let stateToSave: AppState | null = null;
       setAppState((prev) => {
         const updatedLogs = (prev.changeLogs || []).map((entry) =>
           entry.status === 'pending'
@@ -150,9 +196,14 @@ export default function App() {
             : entry
         );
         const nextState = { ...prev, changeLogs: updatedLogs };
+        stateToSave = nextState;
         persistData(nextState);
         return nextState;
       });
+
+      // Salva no banco de dados centralizado e transmite imediatamente para todos os outros usuários/dispositivos
+      const finalState = stateToSave || appStateRef.current;
+      cloudSync.saveCanonicalData(finalState, currentUserName, timeStr);
 
       setLastSavedTime(timeStr);
       setHasUnsavedChanges(false);
@@ -169,7 +220,7 @@ export default function App() {
         setIsSaving(false);
       }, isManual ? 400 : 200);
     }
-  }, []);
+  }, [currentUser]);
 
   // 1. Periodic Auto-save every 10 minutes (600,000 ms)
   useEffect(() => {
@@ -284,6 +335,35 @@ export default function App() {
       `PIN de acesso de ${targetUser ? targetUser.name : 'usuário'} redefinido com sucesso.`
     );
     setHasUnsavedChanges(true);
+  };
+
+  const handleUpdate2FA = (userId: string, enabled: boolean, secret?: string, backupCodes?: string[]) => {
+    const targetUser = (appState.userAccounts || DEFAULT_USER_ACCOUNTS).find((u) => u.id === userId);
+    setAppState((prev) => ({
+      ...prev,
+      userAccounts: (prev.userAccounts || DEFAULT_USER_ACCOUNTS).map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              twoFactorEnabled: enabled,
+              twoFactorSecret: secret || u.twoFactorSecret,
+              twoFactorBackupCodes: backupCodes || u.twoFactorBackupCodes,
+            }
+          : u
+      ),
+    }));
+
+    addChangeLog(
+      'update',
+      'Segurança',
+      'Google Authenticator (2FA)',
+      `2FA Google Authenticator ${enabled ? 'ativado' : 'desativado'} para ${targetUser ? targetUser.name : 'usuário'}.`
+    );
+    setHasUnsavedChanges(true);
+
+    setTimeout(() => {
+      performSave(true);
+    }, 100);
   };
 
   // Immediate persistence on state changes as background backup with change detection
@@ -978,6 +1058,7 @@ export default function App() {
         lastSavedTime={lastSavedTime}
         onOpenChangePin={() => setIsChangePinModalOpen(true)}
         onOpenAuditLog={() => setIsAuditLogModalOpen(true)}
+        onOpen2FAModal={() => setIs2FAModalOpen(true)}
         pendingModificationsCount={pendingModificationsCount}
       />
 
@@ -1485,7 +1566,37 @@ export default function App() {
         isSaving={isSaving}
       />
 
-      {/* Toast de Confirmação de Salvamento em Tempo Real */}
+      {/* 8. Google Authenticator (2FA) Setup Modal */}
+      {currentUser && (
+        <TwoFactorSetupModal
+          isOpen={is2FAModalOpen}
+          onClose={() => setIs2FAModalOpen(false)}
+          currentUser={currentUser}
+          onUpdate2FA={handleUpdate2FA}
+        />
+      )}
+
+      {/* Notificação Flutuante de Sincronização em Tempo Real (Atualização pelo outro usuário) */}
+      {remoteSyncNotice && (
+        <div className="fixed top-20 right-5 z-40 max-w-sm bg-gradient-to-r from-indigo-900 to-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-indigo-400/50 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-2.5 text-xs">
+            <RefreshCw className="w-4 h-4 text-indigo-400 shrink-0 animate-spin" style={{ animationDuration: '4s' }} />
+            <div>
+              <p className="font-bold text-white leading-tight">Sincronização em Tempo Real</p>
+              <p className="text-[11px] text-indigo-200 mt-0.5">{remoteSyncNotice.message}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setRemoteSyncNotice(null)}
+            className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+            title="Fechar"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Toast de Confirmação de Salvamento Local */}
       {saveSuccessNotice && (
         <div className="fixed bottom-5 right-5 z-40 max-w-sm bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-emerald-500/40 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom duration-300">
           <div className="flex items-center gap-2 text-xs">

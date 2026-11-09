@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Shield,
   ShieldCheck,
@@ -16,8 +16,16 @@ import {
   ArrowLeft,
   Send,
   HelpCircle,
+  Smartphone,
+  QrCode,
+  Key,
+  Copy,
+  Check,
+  RefreshCw,
 } from 'lucide-react';
 import { UserAccount } from '../types/finance';
+import { createTOTP, verifyTOTPToken, getTOTPTimeRemaining } from '../utils/totp';
+import QRCode from 'qrcode';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -50,6 +58,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string>('');
 
+  // Estados do fluxo de 2FA (Google Authenticator)
+  const [isAwaiting2FA, setIsAwaiting2FA] = useState<boolean>(false);
+  const [totpInput, setTotpInput] = useState<string>('');
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(getTOTPTimeRemaining());
+  const [showQrPreview, setShowQrPreview] = useState<boolean>(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [copiedKey, setCopiedKey] = useState<boolean>(false);
+  const [isUsingBackupCode, setIsUsingBackupCode] = useState<boolean>(false);
+
   // Estados do fluxo seguro "Esqueci Senha"
   const [isRecovering, setIsRecovering] = useState<boolean>(false);
   const [recoveryStep, setRecoveryStep] = useState<'email' | 'code' | 'new_pin'>('email');
@@ -60,17 +77,50 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [recoveryConfirmPin, setRecoveryConfirmPin] = useState<string>('');
   const [codeNotificationMsg, setCodeNotificationMsg] = useState<string>('');
 
-  if (!isOpen) return null;
-
   const selectedAccount = userAccounts.find((acc) => acc.id === selectedUserId) || userAccounts[0];
+
+  // Timer para o ciclo do TOTP (30s)
+  useEffect(() => {
+    if (!isOpen || !isAwaiting2FA) return;
+    const interval = setInterval(() => {
+      setSecondsRemaining(getTOTPTimeRemaining());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isOpen, isAwaiting2FA]);
+
+  // Gera o QR Code para o Google Authenticator quando solicitado
+  useEffect(() => {
+    if (!isOpen || !selectedAccount || !showQrPreview) return;
+
+    const secret = selectedAccount.twoFactorSecret || 'KRUGS4ZANFZSAYJAONSWG4TFOR2HI2DF';
+    const totp = createTOTP(selectedAccount.email, secret);
+    const uri = totp.toString();
+
+    QRCode.toDataURL(uri, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      width: 180,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff',
+      },
+    })
+      .then((url) => setQrDataUrl(url))
+      .catch((err) => console.error('Erro ao gerar QR Code do 2FA:', err));
+  }, [isOpen, selectedAccount, showQrPreview]);
+
+  if (!isOpen) return null;
 
   const handleSelectAccount = (acc: UserAccount) => {
     setSelectedUserId(acc.id);
     setPinInput('');
+    setTotpInput('');
     setErrorMsg('');
     setSuccessMsg('');
+    setIsAwaiting2FA(false);
     setIsRecovering(false);
     setRecoveryStep('email');
+    setShowQrPreview(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -80,12 +130,56 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     if (!selectedAccount) return;
 
     if (pinInput.trim() === selectedAccount.pin) {
-      onLogin(selectedAccount);
-      setPinInput('');
-      if (onClose) onClose();
+      // Se a conta possuir 2FA ativado (Google Authenticator)
+      if (selectedAccount.twoFactorEnabled !== false) {
+        setIsAwaiting2FA(true);
+        setTotpInput('');
+        setErrorMsg('');
+        setSuccessMsg('');
+      } else {
+        onLogin(selectedAccount);
+        setPinInput('');
+        if (onClose) onClose();
+      }
     } else {
       setErrorMsg('Senha/PIN incorreto. Caso tenha esquecido, utilize a opção "Esqueci minha senha" abaixo.');
     }
+  };
+
+  // Validar o código dinâmico do Google Authenticator ou código de backup
+  const handleVerify2FA = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+
+    if (!selectedAccount) return;
+
+    const cleanInput = totpInput.trim();
+    const secret = selectedAccount.twoFactorSecret || 'KRUGS4ZANFZSAYJAONSWG4TFOR2HI2DF';
+
+    // 1. Testa token dinâmico de 6 dígitos
+    const isTOTPValid = verifyTOTPToken(secret, cleanInput, selectedAccount.email);
+
+    // 2. Testa código de backup de emergência
+    const isBackupValid = selectedAccount.twoFactorBackupCodes?.some(
+      (c) => c.replace(/\D/g, '') === cleanInput.replace(/\D/g, '')
+    );
+
+    if (isTOTPValid || isBackupValid) {
+      onLogin(selectedAccount);
+      setIsAwaiting2FA(false);
+      setTotpInput('');
+      setPinInput('');
+      if (onClose) onClose();
+    } else {
+      setErrorMsg('Código do Google Authenticator inválido ou expirado. Verifique o relógio do seu celular ou utilize um código de backup.');
+    }
+  };
+
+  const handleCopySecretKey = () => {
+    const secret = selectedAccount?.twoFactorSecret || 'KRUGS4ZANFZSAYJAONSWG4TFOR2HI2DF';
+    navigator.clipboard.writeText(secret);
+    setCopiedKey(true);
+    setTimeout(() => setCopiedKey(false), 2000);
   };
 
   // Iniciar recuperação
@@ -106,11 +200,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setErrorMsg('');
 
     const targetEmail = recoveryEmailInput.trim().toLowerCase();
-    const registeredEmail = (selectedAccount.email || '').trim().toLowerCase();
-    const fallbackEmail = '926187@pm.sc.gov.br';
+    const isEduardo = selectedAccount.id === 'usr_eduardo' || selectedAccount.role === 'admin';
+    const officialEmail = isEduardo ? '926187@pm.sc.gov.br' : 'gracielanovakowski@gmail.com';
+    const registeredEmail = (selectedAccount.email || officialEmail).trim().toLowerCase();
 
     // Valida se corresponde ao e-mail cadastrado da conta selecionada
-    const isMatch = targetEmail === registeredEmail || targetEmail === fallbackEmail;
+    const isMatch = targetEmail === registeredEmail || targetEmail === officialEmail;
 
     if (!isMatch) {
       setErrorMsg(`O e-mail informado não confere com o e-mail cadastrado para ${selectedAccount.name}. Verifique a dica abaixo.`);
@@ -237,8 +332,161 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         )}
 
         <div className="p-6 space-y-5">
-          {/* Se NÃO estiver no fluxo de recuperação: Tela Normal de Login */}
+          {/* Se NÃO estiver no fluxo de recuperação */}
           {!isRecovering ? (
+            isAwaiting2FA ? (
+              /* Tela de Verificação em Duas Etapas - Google Authenticator */
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-3 bg-indigo-50/80 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200/80 dark:border-indigo-800/60">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-xs"
+                  style={{ backgroundColor: selectedAccount.color }}
+                >
+                  {selectedAccount.avatarInitials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      {selectedAccount.name}
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-200 dark:bg-indigo-900/80 text-indigo-800 dark:text-indigo-200">
+                      2FA Ativo
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    {selectedAccount.email}
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleVerify2FA} className="space-y-3.5">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-indigo-500" />
+                      {isUsingBackupCode ? 'Código de Backup / Emergência' : 'Código Google Authenticator (6 dígitos)'}
+                    </label>
+                    {!isUsingBackupCode && (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                        <RefreshCw className="w-2.5 h-2.5 animate-spin text-indigo-500" style={{ animationDuration: '6s' }} />
+                        {secondsRemaining}s
+                      </span>
+                    )}
+                  </div>
+
+                  <input
+                    type="text"
+                    inputMode={isUsingBackupCode ? 'text' : 'numeric'}
+                    autoFocus
+                    required
+                    value={totpInput}
+                    onChange={(e) => {
+                      setTotpInput(e.target.value);
+                      setErrorMsg('');
+                    }}
+                    placeholder={isUsingBackupCode ? 'Ex: 12345678' : '000 000'}
+                    maxLength={isUsingBackupCode ? 12 : 6}
+                    className="w-full px-3.5 py-3 text-lg bg-slate-50 dark:bg-slate-800 border-2 border-indigo-200 dark:border-indigo-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white tracking-[0.25em] text-center font-mono font-bold"
+                  />
+
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 text-center">
+                    {isUsingBackupCode
+                      ? 'Insira um dos seus códigos de emergência salvos no cadastro do 2FA.'
+                      : 'Abra o aplicativo Google Authenticator no seu celular e digite o código atual.'}
+                  </p>
+                </div>
+
+                {errorMsg && (
+                  <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{errorMsg}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Confirmar e Acessar</span>
+                </button>
+
+                {/* Alternância e utilitários */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUsingBackupCode(!isUsingBackupCode);
+                        setErrorMsg('');
+                        setTotpInput('');
+                      }}
+                      className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <Key className="w-3 h-3" />
+                      <span>{isUsingBackupCode ? 'Usar Google Authenticator' : 'Usar código de backup'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowQrPreview(!showQrPreview)}
+                      className="text-[11px] text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 flex items-center gap-1 font-medium"
+                    >
+                      <QrCode className="w-3 h-3" />
+                      <span>{showQrPreview ? 'Ocultar QR Code' : 'Escanear QR Code'}</span>
+                    </button>
+                  </div>
+
+                  {/* QR Code preview dropdown */}
+                  {showQrPreview && (
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 text-center space-y-2.5 animate-in fade-in duration-150">
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                        Escaneie com a câmera do Google Authenticator:
+                      </p>
+                      {qrDataUrl && (
+                        <div className="flex justify-center">
+                          <img
+                            src={qrDataUrl}
+                            alt="QR Code Google Authenticator"
+                            className="w-36 h-36 rounded-lg p-1 bg-white shadow-xs"
+                          />
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-[10px] text-slate-400 block mb-1">Chave manual (Base32):</span>
+                        <div className="flex items-center justify-center gap-1 font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 px-2 py-1 rounded border border-slate-200 dark:border-slate-700">
+                          <span className="truncate max-w-[200px]">
+                            {selectedAccount.twoFactorSecret || 'KRUGS4ZANFZSAYJAONSWG4TFOR2HI2DF'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleCopySecretKey}
+                            className="p-1 hover:text-indigo-600 text-slate-400"
+                            title="Copiar chave"
+                          >
+                            {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAwaiting2FA(false);
+                      setErrorMsg('');
+                    }}
+                    className="w-full py-2 px-3 text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <ArrowLeft className="w-3 h-3" />
+                    <span>Voltar para digitar o PIN</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            /* Formulário Normal de Login por PIN */
             <>
               {/* Account selection tabs */}
               <div>
@@ -319,7 +567,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
                   <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 flex items-center justify-between">
                     <span>Acesso pessoal e intransferível</span>
-                    <span className="text-[10px] text-slate-400">Alteração do PIN disponível após login</span>
+                    <span className="text-[10px] text-slate-400">2FA Google Authenticator habilitado</span>
                   </p>
                 </div>
 
@@ -347,7 +595,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 >
                   <LogIn className="w-4 h-4" />
                   <span>
-                    Entrar como {selectedAccount.name} ({selectedAccount.role === 'admin' ? 'Admin' : 'Usuário'})
+                    Avançar para Verificação 2FA ({selectedAccount.name})
                   </span>
                 </button>
 
@@ -379,6 +627,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 )}
               </form>
             </>
+            )
           ) : (
             /* Fluxo Seguro: Esqueci Senha por E-mail Cadastrado */
             <div className="space-y-4">
@@ -422,7 +671,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                       />
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
-                      Dica de segurança: e-mail registrado termina em <strong>{maskEmail(selectedAccount.email || '926187@pm.sc.gov.br')}</strong>
+                      Dica de segurança: e-mail registrado termina em <strong>{maskEmail(selectedAccount.email || (selectedAccount.role === 'admin' ? '926187@pm.sc.gov.br' : 'gracielanovakowski@gmail.com'))}</strong>
                     </p>
                   </div>
 

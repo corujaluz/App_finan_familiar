@@ -23,6 +23,9 @@ export interface UserAccount {
   email: string; // E-mail cadastrado para recuperação de senha
   avatarInitials: string;
   color: string;
+  twoFactorEnabled?: boolean; // Autenticação em duas etapas do Google Authenticator ativada
+  twoFactorSecret?: string; // Segredo Base32 do Google Authenticator
+  twoFactorBackupCodes?: string[]; // Códigos reservas de emergência
 }
 
 export interface FamilyMember {

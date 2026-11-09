@@ -26,6 +26,9 @@ export const DEFAULT_USER_ACCOUNTS: UserAccount[] = [
     email: '926187@pm.sc.gov.br', // E-mail cadastrado para recuperação
     avatarInitials: 'EH',
     color: '#2563EB', // Blue
+    twoFactorEnabled: true, // Google Authenticator 2FA ativado
+    twoFactorSecret: 'KRUGS4ZANFZSAYJAONSWG4TFOR2HI2DF',
+    twoFactorBackupCodes: ['1492-4820', '3912-7401', '8294-1940', '5820-3914', '7492-1049'],
   },
   {
     id: 'usr_graciela',
@@ -34,9 +37,12 @@ export const DEFAULT_USER_ACCOUNTS: UserAccount[] = [
     role: 'user',
     memberId: 'mem_graciela',
     pin: '1234',
-    email: 'graciela.heckler@gmail.com', // E-mail cadastrado para recuperação
+    email: 'gracielanovakowski@gmail.com', // E-mail cadastrado para recuperação
     avatarInitials: 'GH',
     color: '#059669', // Emerald
+    twoFactorEnabled: true, // Google Authenticator 2FA ativado
+    twoFactorSecret: 'OBZG63THEB2G64TNMNXW45DFOZXW633E',
+    twoFactorBackupCodes: ['2941-8392', '7401-3829', '1940-5820', '4820-1492', '3819-7492'],
   },
 ];
 
@@ -112,13 +118,17 @@ export const loadStoredData = (): AppState => {
     const creditCardPresets: CreditCardPresetItem[] = rawPresets ? JSON.parse(rawPresets) : DEFAULT_CREDIT_CARD_PRESETS;
     const alarmSettings: AlarmSettings = rawAlarm ? { ...DEFAULT_ALARM_SETTINGS, ...JSON.parse(rawAlarm) } : DEFAULT_ALARM_SETTINGS;
     
-    // Assegura que todas as contas possuam e-mail configurado para recuperação
+    // Assegura que todas as contas possuam e-mail configurado para recuperação e integridade
     const parsedAccounts: UserAccount[] = rawAccounts ? JSON.parse(rawAccounts) : DEFAULT_USER_ACCOUNTS;
     const userAccounts: UserAccount[] = parsedAccounts.map((acc) => {
+      const isEduardo = acc.id === 'usr_eduardo' || acc.role === 'admin';
       const defaultAcc = DEFAULT_USER_ACCOUNTS.find((d) => d.id === acc.id);
       return {
         ...acc,
-        email: acc.email || defaultAcc?.email || (acc.role === 'admin' ? '926187@pm.sc.gov.br' : 'graciela.heckler@gmail.com'),
+        email: isEduardo ? '926187@pm.sc.gov.br' : 'gracielanovakowski@gmail.com',
+        twoFactorEnabled: acc.twoFactorEnabled !== undefined ? acc.twoFactorEnabled : true,
+        twoFactorSecret: acc.twoFactorSecret || defaultAcc?.twoFactorSecret || (isEduardo ? 'KRUGS4ZANFZSAYJAONSWG4TFOR2HI2DF' : 'OBZG63THEB2G64TNMNXW45DFOZXW633E'),
+        twoFactorBackupCodes: acc.twoFactorBackupCodes || defaultAcc?.twoFactorBackupCodes || ['1492-4820', '3912-7401', '8294-1940', '5820-3914', '7492-1049'],
       };
     });
 
@@ -147,6 +157,36 @@ export const loadStoredData = (): AppState => {
       changeLogs: INITIAL_CHANGE_LOGS,
     };
   }
+};
+
+/**
+ * Mescla o estado recebido do servidor preservando a sessão de login local do dispositivo/aba
+ */
+export const mergeIncomingServerState = (currentState: AppState, serverState: Partial<AppState>): AppState => {
+  return {
+    ...currentState,
+    transactions: serverState.transactions ?? currentState.transactions,
+    categories: serverState.categories ?? currentState.categories,
+    members: serverState.members ?? currentState.members,
+    incomeSources: serverState.incomeSources ?? currentState.incomeSources,
+    creditCardExpenses: serverState.creditCardExpenses ?? currentState.creditCardExpenses,
+    creditCardPresets: serverState.creditCardPresets ?? currentState.creditCardPresets,
+    alarmSettings: serverState.alarmSettings ?? currentState.alarmSettings,
+    userAccounts: (serverState.userAccounts ?? currentState.userAccounts).map((acc) => {
+      const isEduardo = acc.id === 'usr_eduardo' || acc.role === 'admin';
+      const defaultAcc = DEFAULT_USER_ACCOUNTS.find((d) => d.id === acc.id);
+      return {
+        ...acc,
+        email: isEduardo ? '926187@pm.sc.gov.br' : 'gracielanovakowski@gmail.com',
+        twoFactorEnabled: acc.twoFactorEnabled !== undefined ? acc.twoFactorEnabled : true,
+        twoFactorSecret: acc.twoFactorSecret || defaultAcc?.twoFactorSecret || (isEduardo ? 'KRUGS4ZANFZSAYJAONSWG4TFOR2HI2DF' : 'OBZG63THEB2G64TNMNXW45DFOZXW633E'),
+        twoFactorBackupCodes: acc.twoFactorBackupCodes || defaultAcc?.twoFactorBackupCodes || ['1492-4820', '3912-7401', '8294-1940', '5820-3914', '7492-1049'],
+      };
+    }),
+    changeLogs: serverState.changeLogs ?? currentState.changeLogs,
+    // activeUserId é local ao navegador/dispositivo do usuário atual para não desconectar nem alternar a sessão
+    activeUserId: currentState.activeUserId,
+  };
 };
 
 export const persistData = (state: AppState): void => {

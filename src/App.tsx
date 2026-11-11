@@ -392,12 +392,13 @@ export default function App() {
       .reduce((sum, t) => sum + t.amount, 0);
   }, [monthTransactions]);
 
-  // Sincroniza e garante que todas as fontes de renda ativas possuam lançamentos correspondentes no mês
+  // Sincroniza fontes de renda e propaga lançamentos recorrentes para o mês atual
   useEffect(() => {
     setAppState((prev) => {
       let hasChanges = false;
       const newTransactions = [...prev.transactions];
 
+      // 1. Sincroniza fontes de renda ativas
       prev.incomeSources.filter((s) => s.isActive).forEach((source) => {
         const existingTx = newTransactions.find(
           (tx) => tx.type === 'income' && tx.dueDate.startsWith(currentMonthKey) && (tx.sourceId === source.id || tx.title.toLowerCase() === source.name.toLowerCase())
@@ -425,6 +426,44 @@ export default function App() {
             isRecurring: true,
             createdAt: `${currentMonthKey}-01`,
           });
+        }
+      });
+
+      // 2. Propaga lançamentos recorrentes fixos existentes para os meses subsequentes
+      const [curYear, curMonth] = currentMonthKey.split('-').map(Number);
+      const recurringTemplates = prev.transactions.filter((tx) => tx.isRecurring);
+
+      recurringTemplates.forEach((template) => {
+        const [startY, startM, startDStr] = template.dueDate.split('-').map(Number);
+        const monthDiff = (curYear - startY) * 12 + (curMonth - startM);
+        const maxMonths = template.recurringMonthsCount && template.recurringMonthsCount > 0 ? template.recurringMonthsCount : 12;
+
+        if (monthDiff > 0 && monthDiff < maxMonths) {
+          const alreadyExists = newTransactions.some(
+            (tx) =>
+              (template.recurringGroupId && tx.recurringGroupId === template.recurringGroupId && tx.dueDate.startsWith(currentMonthKey)) ||
+              (tx.title.toLowerCase() === template.title.toLowerCase() &&
+                tx.categoryId === template.categoryId &&
+                tx.type === template.type &&
+                tx.dueDate.startsWith(currentMonthKey))
+          );
+
+          if (!alreadyExists) {
+            hasChanges = true;
+            const maxDays = new Date(curYear, curMonth, 0).getDate();
+            const day = Math.min(startDStr || 10, maxDays);
+            const targetDueDate = `${currentMonthKey}-${String(day).padStart(2, '0')}`;
+
+            newTransactions.push({
+              ...template,
+              id: `tx_rec_${template.id.replace('tx_', '')}_${currentMonthKey}`,
+              dueDate: targetDueDate,
+              status: 'pending', // Meses subsequentes iniciam como pendentes
+              paymentDate: undefined,
+              receiptNote: undefined,
+              createdAt: `${currentMonthKey}-01`,
+            });
+          }
         }
       });
 
@@ -539,27 +578,157 @@ export default function App() {
     data: Omit<Transaction, 'id' | 'createdAt'>,
     editId?: string
   ) => {
+    const isRecurring = Boolean(data.isRecurring);
+    const monthsCount = isRecurring ? (Number(data.recurringMonthsCount) || 12) : 1;
+
+    // Extrai data base de vencimento
+    const baseDueDate = data.dueDate || `${currentMonthKey}-10`;
+    const parts = baseDueDate.split('-');
+    const startYear = parseInt(parts[0], 10) || 2026;
+    const startMonth = parseInt(parts[1], 10) || 11;
+    const startDay = parseInt(parts[2], 10) || 10;
+
     setAppState((prev) => {
-      let updatedList: Transaction[];
+      let updatedList = [...prev.transactions];
+
       if (editId) {
-        updatedList = prev.transactions.map((tx) =>
-          tx.id === editId ? { ...tx, ...data } : tx
+        const existingTx = prev.transactions.find((tx) => tx.id === editId);
+        const recurringGroupId =
+          existingTx?.recurringGroupId ||
+          data.recurringGroupId ||
+          (isRecurring ? `rec_grp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}` : undefined);
+
+        // Atualiza a transação em edição
+        updatedList = updatedList.map((tx) =>
+          tx.id === editId
+            ? {
+                ...tx,
+                ...data,
+                isRecurring,
+                recurringMonthsCount: isRecurring ? monthsCount : undefined,
+                recurringGroupId,
+              }
+            : tx
         );
+
+        // Se for recorrente e configurada para múltiplos meses, gera os meses subsequentes faltantes
+        if (isRecurring && monthsCount > 1) {
+          const futureTxs: Transaction[] = [];
+          for (let i = 1; i < monthsCount; i++) {
+            const curYear = startYear + Math.floor((startMonth - 1 + i) / 12);
+            const curMonth = ((startMonth - 1 + i) % 12) + 1;
+            const maxDays = new Date(curYear, curMonth, 0).getDate();
+            const day = Math.min(startDay, maxDays);
+            const curMonthKey = `${curYear}-${String(curMonth).padStart(2, '0')}`;
+            const curDueDate = `${curMonthKey}-${String(day).padStart(2, '0')}`;
+
+            // Verifica se já existe um lançamento desse grupo ou deste título no mês sequente
+            const existsInFutureMonth = updatedList.some(
+              (tx) =>
+                (recurringGroupId && tx.recurringGroupId === recurringGroupId && tx.dueDate.startsWith(curMonthKey)) ||
+                (tx.title.toLowerCase() === data.title.toLowerCase() &&
+                  tx.categoryId === data.categoryId &&
+                  tx.type === data.type &&
+                  tx.dueDate.startsWith(curMonthKey))
+            );
+
+            if (!existsInFutureMonth) {
+              futureTxs.push({
+                ...data,
+                id: `tx_rec_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
+                dueDate: curDueDate,
+                status: 'pending', // Meses subsequentes iniciam pendentes para conferência mensal
+                paymentDate: undefined,
+                receiptNote: undefined,
+                isRecurring: true,
+                recurringMonthsCount: monthsCount,
+                recurringGroupId,
+                createdAt: new Date().toISOString().split('T')[0],
+              });
+            }
+          }
+
+          if (futureTxs.length > 0) {
+            updatedList = [...updatedList, ...futureTxs];
+          }
+        }
       } else {
-        const newTx: Transaction = {
+        // Novo Lançamento
+        const recurringGroupId = isRecurring
+          ? `rec_grp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
+          : undefined;
+
+        const initialTx: Transaction = {
           ...data,
           id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          isRecurring,
+          recurringMonthsCount: isRecurring ? monthsCount : undefined,
+          recurringGroupId,
           createdAt: new Date().toISOString().split('T')[0],
         };
-        updatedList = [newTx, ...prev.transactions];
+
+        const newTxs: Transaction[] = [initialTx];
+
+        // Se for recorrente e configurado para múltiplos meses sequentes
+        if (isRecurring && monthsCount > 1) {
+          for (let i = 1; i < monthsCount; i++) {
+            const curYear = startYear + Math.floor((startMonth - 1 + i) / 12);
+            const curMonth = ((startMonth - 1 + i) % 12) + 1;
+            const maxDays = new Date(curYear, curMonth, 0).getDate();
+            const day = Math.min(startDay, maxDays);
+            const curMonthKey = `${curYear}-${String(curMonth).padStart(2, '0')}`;
+            const curDueDate = `${curMonthKey}-${String(day).padStart(2, '0')}`;
+
+            // Verifica se já existe nesse mês
+            const alreadyExists = updatedList.some(
+              (tx) =>
+                tx.title.toLowerCase() === data.title.toLowerCase() &&
+                tx.categoryId === data.categoryId &&
+                tx.type === data.type &&
+                tx.dueDate.startsWith(curMonthKey)
+            );
+
+            if (!alreadyExists) {
+              newTxs.push({
+                ...data,
+                id: `tx_rec_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
+                dueDate: curDueDate,
+                status: 'pending', // Meses futuros iniciam pendentes
+                paymentDate: undefined,
+                receiptNote: undefined,
+                isRecurring: true,
+                recurringMonthsCount: monthsCount,
+                recurringGroupId,
+                createdAt: new Date().toISOString().split('T')[0],
+              });
+            }
+          }
+        }
+
+        updatedList = [...newTxs, ...updatedList];
       }
+
       return { ...prev, transactions: updatedList };
     });
 
     if (editId) {
-      addChangeLog('update', 'Lançamento', 'Edição de Lançamento', `Lançamento "${data.title}" alterado (${formatBRL(data.amount)}).`);
+      addChangeLog(
+        'update',
+        'Lançamento',
+        'Edição de Lançamento',
+        isRecurring && monthsCount > 1
+          ? `Lançamento recorrente "${data.title}" atualizado para ${monthsCount} meses automáticos (${formatBRL(data.amount)}).`
+          : `Lançamento "${data.title}" alterado (${formatBRL(data.amount)}).`
+      );
     } else {
-      addChangeLog('create', 'Lançamento', 'Novo Lançamento', `Novo lançamento "${data.title}" cadastrado (${formatBRL(data.amount)}).`);
+      addChangeLog(
+        'create',
+        'Lançamento',
+        'Novo Lançamento',
+        isRecurring && monthsCount > 1
+          ? `Novo lançamento recorrente "${data.title}" cadastrado e programado para ${monthsCount} meses automáticos (${formatBRL(data.amount)}/mês).`
+          : `Novo lançamento "${data.title}" cadastrado (${formatBRL(data.amount)}).`
+      );
     }
   };
 

@@ -15,6 +15,7 @@ import {
   Calendar,
   Bell,
   CreditCard,
+  Repeat,
 } from 'lucide-react';
 import { Category, FamilyMember, IncomeSource, PaymentStatus, Transaction, TransactionType } from '../types/finance';
 import { formatBRL, formatDateBR, getPaymentMethodLabel, getPaymentStatusInfo } from '../utils/formatters';
@@ -369,7 +370,12 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                           {tx.isRecurring && (
                             <>
                               <span aria-hidden="true">·</span>
-                              <span className="text-slate-400">Recorrente Mensal</span>
+                              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                                <Repeat className="w-3 h-3 shrink-0" />
+                                {tx.recurringMonthsCount && tx.recurringMonthsCount > 1
+                                  ? `Recorrente (${tx.recurringMonthsCount} meses)`
+                                  : 'Recorrente Mensal'}
+                              </span>
                             </>
                           )}
                           {tx.receiptNote && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Save, TrendingUp, TrendingDown, Briefcase } from 'lucide-react';
+import { X, Plus, Save, TrendingUp, TrendingDown, Briefcase, Repeat, Calendar } from 'lucide-react';
 import { Category, FamilyMember, IncomeSource, PaymentMethod, PaymentStatus, Transaction, TransactionType } from '../types/finance';
 
 interface TransactionModalProps {
@@ -43,12 +43,29 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(transactionToEdit?.paymentMethod || 'pix');
   const [receiptNote, setReceiptNote] = useState(transactionToEdit?.receiptNote || '');
   const [isRecurring, setIsRecurring] = useState(transactionToEdit?.isRecurring ?? false);
+  const [recurringMonths, setRecurringMonths] = useState<number>(transactionToEdit?.recurringMonthsCount || 12);
   const [enableAlarm, setEnableAlarm] = useState(transactionToEdit?.enableAlarm ?? true);
   const [alarmDaysNotice, setAlarmDaysNotice] = useState((transactionToEdit?.alarmDaysNotice ?? 3).toString());
   const [isCreditCardInvoice, setIsCreditCardInvoice] = useState(
     transactionToEdit?.isCreditCardInvoice ?? (transactionToEdit?.categoryId === 'cat_cartao')
   );
   const [notes, setNotes] = useState(transactionToEdit?.notes || '');
+
+  // Helper para resumo do período de recorrência
+  const getRecurrenceSummary = (dateStr: string, count: number): string => {
+    if (!dateStr) return `${count} meses`;
+    try {
+      const [y, m] = dateStr.split('-').map(Number);
+      if (!y || !m) return `${count} meses`;
+      const startDate = new Date(y, m - 1, 1);
+      const endDate = new Date(y, m - 1 + (count - 1), 1);
+      const startName = startDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+      const endName = endDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+      return `${startName} até ${endName}`;
+    } catch {
+      return `${count} meses`;
+    }
+  };
 
   // Reset or fill fields on open or change of transactionToEdit
   useEffect(() => {
@@ -66,6 +83,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setPaymentMethod(transactionToEdit.paymentMethod);
       setReceiptNote(transactionToEdit.receiptNote || '');
       setIsRecurring(transactionToEdit.isRecurring ?? false);
+      setRecurringMonths(transactionToEdit.recurringMonthsCount || 12);
       setEnableAlarm(transactionToEdit.enableAlarm ?? true);
       setAlarmDaysNotice((transactionToEdit.alarmDaysNotice ?? 3).toString());
       setIsCreditCardInvoice(transactionToEdit.isCreditCardInvoice ?? (transactionToEdit.categoryId === 'cat_cartao'));
@@ -85,6 +103,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setPaymentMethod('pix');
       setReceiptNote('');
       setIsRecurring(false);
+      setRecurringMonths(12);
       setEnableAlarm(true);
       setAlarmDaysNotice('3');
       setIsCreditCardInvoice(false);
@@ -155,6 +174,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       paymentMethod,
       receiptNote: receiptNote.trim() || undefined,
       isRecurring,
+      recurringMonthsCount: isRecurring ? (Number(recurringMonths) || 12) : undefined,
+      recurringGroupId: transactionToEdit?.recurringGroupId,
       enableAlarm: type === 'expense' ? enableAlarm : false,
       alarmDaysNotice: type === 'expense' && enableAlarm ? (parseInt(alarmDaysNotice, 10) || 3) : undefined,
       isCreditCardInvoice: type === 'expense' ? Boolean(isCreditCardInvoice || categoryId === 'cat_cartao') : false,
@@ -448,38 +469,114 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </div>
           )}
 
-          {/* Payment Method & Recurring option */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Forma de Pagamento Principal
-              </label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
-              >
-                <option value="pix">PIX</option>
-                <option value="boleto">Boleto Bancário</option>
-                <option value="debito_automatico">Débito Automático</option>
-                <option value="cartao_debito">Cartão de Débito</option>
-                <option value="cartao_credito">Cartão de Crédito</option>
-                <option value="transferencia">Transferência Bancária / TED</option>
-                <option value="dinheiro">Dinheiro em Espécie</option>
-              </select>
-            </div>
+          {/* Payment Method */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Forma de Pagamento Principal
+            </label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+              className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+            >
+              <option value="pix">PIX</option>
+              <option value="boleto">Boleto Bancário</option>
+              <option value="debito_automatico">Débito Automático</option>
+              <option value="cartao_debito">Cartão de Débito</option>
+              <option value="cartao_credito">Cartão de Crédito</option>
+              <option value="transferencia">Transferência Bancária / TED</option>
+              <option value="dinheiro">Dinheiro em Espécie</option>
+            </select>
+          </div>
 
-            <div className="flex items-center pt-5">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-300">
+          {/* Opção de Conta Recorrente Fixa com seleção de meses subsequentes */}
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-800 dark:text-slate-200 select-none">
                 <input
                   type="checkbox"
                   checked={isRecurring}
                   onChange={(e) => setIsRecurring(e.target.checked)}
-                  className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4"
+                  className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
                 />
-                <span>Conta Recorrente Fixa (repete todo mês)</span>
+                <span className="flex items-center gap-1.5">
+                  <Repeat className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  Conta Recorrente Fixa (repete todo mês)
+                </span>
               </label>
+
+              {isRecurring && (
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">
+                  {recurringMonths} {recurringMonths === 1 ? 'mês' : 'meses'}
+                </span>
+              )}
             </div>
+
+            {isRecurring && (
+              <div className="pt-2.5 border-t border-slate-200/80 dark:border-slate-700/60 space-y-3 animate-in fade-in duration-150">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      Meses para preenchimento automático
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      O lançamento será cadastrado automaticamente nos meses sequentes
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min="1"
+                      max="60"
+                      value={recurringMonths}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setRecurringMonths(isNaN(val) ? 1 : Math.max(1, Math.min(60, val)));
+                      }}
+                      className="w-16 px-2 py-1 text-xs text-center font-bold font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg dark:text-white focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-300">meses</span>
+                  </div>
+                </div>
+
+                {/* Predefinições de meses rápidos */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {[
+                    { label: '3 meses', value: 3 },
+                    { label: '6 meses', value: 6 },
+                    { label: '12 meses (1 ano)', value: 12 },
+                    { label: '24 meses (2 anos)', value: 24 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      onClick={() => setRecurringMonths(preset.value)}
+                      className={`py-1.5 px-2 text-xs font-semibold rounded-lg border transition-all text-center ${
+                        recurringMonths === preset.value
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Resumo da Recorrência com cálculo de datas */}
+                <div className="p-2.5 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/40 rounded-lg flex items-start gap-2.5 text-xs text-emerald-900 dark:text-emerald-300">
+                  <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold">Programação automática confirmada:</span>{' '}
+                    <span>
+                      Será lançado em <strong>{recurringMonths} {recurringMonths === 1 ? 'mês' : 'meses sequentes'}</strong> ({getRecurrenceSummary(dueDate, recurringMonths)}), no dia <strong>{dueDate ? dueDate.split('-')[2] : '10'}</strong> de cada mês.
+                    </span>
+                    <p className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-400">
+                      Os meses seguintes serão criados com status <strong>Pendente</strong>, garantindo o acompanhamento prévio no alarme e a conferência mensal.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Alarme Sonoro Individual para a Conta */}

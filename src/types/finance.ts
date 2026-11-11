@@ -111,6 +111,8 @@ export interface Transaction {
   paymentMethod: PaymentMethod;
   receiptNote?: string; // e.g. "Código de autenticação ou anotação do comprovante"
   isRecurring?: boolean;
+  recurringMonthsCount?: number; // Quantos meses este lançamento deverá ser preenchido automaticamente (ex: 3, 6, 12, 24)
+  recurringGroupId?: string; // ID do grupo recorrente para sincronizar lançamentos dos meses subsequentes
   enableAlarm?: boolean; // Alarme sonoro ativado para esta conta específica
   alarmDaysNotice?: number; // Período de disparo para esta conta específica (dias antes)
   isCreditCardInvoice?: boolean; // Marcador de item de fatura de cartão em lançamentos (não computa no total geral para evitar duplicidade, editável e com toggle no gráfico)

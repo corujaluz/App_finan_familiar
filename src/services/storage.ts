@@ -114,17 +114,7 @@ export const loadStoredData = (): AppState => {
     const categories: Category[] = rawCat ? JSON.parse(rawCat) : INITIAL_CATEGORIES;
     const members: FamilyMember[] = rawMem ? JSON.parse(rawMem) : INITIAL_MEMBERS;
     const incomeSources: IncomeSource[] = rawSources ? JSON.parse(rawSources) : INITIAL_INCOME_SOURCES;
-    let creditCardExpenses: CreditCardExpense[] = rawCC ? JSON.parse(rawCC) : INITIAL_CREDIT_CARD_EXPENSES;
-
-    // Recuperação integral dos dados do mês de novembro/2026 caso corrompidos ou com itens faltantes
-    const hasFullNov = creditCardExpenses.some((c) => c.id === 'cc_nov_combustivel') &&
-      creditCardExpenses.filter((c) => c.referenceMonth === '2026-11').length >= 14;
-    if (!hasFullNov) {
-      const nonNov = creditCardExpenses.filter((c) => c.referenceMonth !== '2026-11');
-      const novExpenses = INITIAL_CREDIT_CARD_EXPENSES.filter((c) => c.referenceMonth === '2026-11');
-      creditCardExpenses = [...novExpenses, ...nonNov];
-    }
-
+    const creditCardExpenses: CreditCardExpense[] = rawCC ? JSON.parse(rawCC) : INITIAL_CREDIT_CARD_EXPENSES;
     const creditCardPresets: CreditCardPresetItem[] = rawPresets ? JSON.parse(rawPresets) : DEFAULT_CREDIT_CARD_PRESETS;
     const alarmSettings: AlarmSettings = rawAlarm ? { ...DEFAULT_ALARM_SETTINGS, ...JSON.parse(rawAlarm) } : DEFAULT_ALARM_SETTINGS;
     
@@ -173,22 +163,13 @@ export const loadStoredData = (): AppState => {
  * Mescla o estado recebido do servidor preservando a sessão de login local do dispositivo/aba
  */
 export const mergeIncomingServerState = (currentState: AppState, serverState: Partial<AppState>): AppState => {
-  let mergedCC = serverState.creditCardExpenses ?? currentState.creditCardExpenses;
-  const hasFullNovInMerged = mergedCC.some((c) => c.id === 'cc_nov_combustivel') &&
-    mergedCC.filter((c) => c.referenceMonth === '2026-11').length >= 14;
-  if (!hasFullNovInMerged) {
-    const nonNov = mergedCC.filter((c) => c.referenceMonth !== '2026-11');
-    const novExpenses = INITIAL_CREDIT_CARD_EXPENSES.filter((c) => c.referenceMonth === '2026-11');
-    mergedCC = [...novExpenses, ...nonNov];
-  }
-
   return {
     ...currentState,
     transactions: serverState.transactions ?? currentState.transactions,
     categories: serverState.categories ?? currentState.categories,
     members: serverState.members ?? currentState.members,
     incomeSources: serverState.incomeSources ?? currentState.incomeSources,
-    creditCardExpenses: mergedCC,
+    creditCardExpenses: serverState.creditCardExpenses ?? currentState.creditCardExpenses,
     creditCardPresets: serverState.creditCardPresets ?? currentState.creditCardPresets,
     alarmSettings: serverState.alarmSettings ?? currentState.alarmSettings,
     userAccounts: (serverState.userAccounts ?? currentState.userAccounts).map((acc) => {

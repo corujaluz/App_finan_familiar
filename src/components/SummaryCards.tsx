@@ -78,9 +78,9 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
   const savingsRate = displayIncome > 0 ? ((displayIncome - totalExpense) / displayIncome) * 100 : 0;
 
   // Payment confirmation progress percentage
-  const totalExpenseBills = regularExpenseTx.length + (creditCardTotal > 0 ? 1 : 0);
-  const paidExpenseBills = regularExpenseTx.filter((t) => t.status === 'paid').length + (isCardInvoicePaid ? 1 : 0);
-  const paymentProgressPct = totalExpense > 0 ? Math.round((paidExpense / totalExpense) * 100) : 100;
+  const totalBills = transactions.length;
+  const paidBills = transactions.filter((t) => t.status === 'paid').length;
+  const paymentProgressPct = totalBills > 0 ? Math.round((paidBills / totalBills) * 100) : 100;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-6">
@@ -198,7 +198,7 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
               {paymentProgressPct}%
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-              {paidExpenseBills} de {totalExpenseBills} quitadas
+              {paidBills} de {totalBills} quitadas
             </span>
           </div>
 
